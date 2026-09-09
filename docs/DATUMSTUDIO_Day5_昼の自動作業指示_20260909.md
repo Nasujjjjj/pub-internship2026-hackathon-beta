@@ -4,6 +4,8 @@
 
 ## 1. 貼り方（各自、自分の Codespace で。人は横にいてよいが CoCo には質問させない）
 
+担当：**A（画面）＝那須／B（データ）＝田中さん／C（AI＋天気）＝駒場さん**。デプロイは A の那須の箱から行い、発表の画面は那須の Mac を映す（田中さんが話す）。personal database に配備されても那須は開ける。
+
 1. `git checkout main && git pull origin main` → `git log --oneline -1` が 02cfd15 以降 → ブランチを切る：`git checkout -b lunch/screen`（データ＝`lunch/data`、AI＋天気＝`lunch/ai-weather`）
 2. **貼る前に**自動承認にする：`cortex --bypass --auto-accept-plans` で起動（フラグが無ければ起動後に shift+tab で bypass に切替）。画面下が bypass 表示（赤 `>>`）で plan（橙 `⏸`）が無いことを確認。貼ってから切り替えると最初のツール呼び出しが承認待ちで止まる
 3. 指示文を貼って送る。最初の 1〜2 アクション（ファイル作成か SQL）が承認なしに流れるのを見る
@@ -15,7 +17,7 @@
 - [ ] 各箱で空コミットの push が通る：`git commit --allow-empty -m "lunch: start" && git push -u origin $(git branch --show-current)`。通らない人の指示文からは push の行を消し、13:50 に `git format-patch main` で回収
 - [ ] 画面担当の箱で `npm run dev` を起動し `/api/quiz` を 1 回叩いて OAuth を通しておく（初回はブラウザ認証で 25 秒。2 回目以降はキャッシュ）
 - [ ] AI モデルの疎通：Snowsight で `SELECT SNOWFLAKE.CORTEX.COMPLETE('<候補>', 'Reply with OK');` を 'claude-sonnet-4-5' → 'llama3.3-70b' → 'llama3.1-8b' → 'mistral-large2' の順に試し、最初に通った名前を指示文 C の `<MODEL>` に入れる
-- [ ] App Runtime の可否：画面担当が `SHOW PARAMETERS LIKE 'DEFAULT_SNOWFLAKE_APPS%' IN ACCOUNT;` を実行。値が空＝管理者セットアップ未了＝personal database に配備される（本人しか開けない）。その場合は**発表者（田中さん）の箱でデプロイ**する。Streamlit には切り替えない
+- [ ] App Runtime の可否：画面担当が `SHOW PARAMETERS LIKE 'DEFAULT_SNOWFLAKE_APPS%' IN ACCOUNT;` を実行。値が空＝管理者セットアップ未了＝personal database に配備される（本人しか開けない）。その場合でも A（那須）の箱でデプロイし、発表の画面は那須の Mac を映す（田中さんが話す）。Streamlit には切り替えない
 - [ ] CoCo 右上が Warehouse: TEAM_B_WH
 - [ ] 開始が 13:10 を過ぎたら、各指示文の末尾「優先順位」の下から削る
 
@@ -24,7 +26,7 @@
 1. 各自：CoCo を止め、`git log --oneline -3` と `git status` で最後の commit が push 済みか確認（origin に無い枝だけ `git push -u origin lunch/…`。通らなければ `git format-patch main`）
 2. 統合役：`git fetch origin --prune` → `git show origin/lunch/<枝>:docs/progress_<名>.md` で 3 本を読む（向き反転／ID 3 の新しい 1 位／除外の行数と金額／候補との数字のずれ／使ったモデル／デプロイ URL）→ `git checkout main && git pull origin main` → `git merge --no-ff origin/lunch/data` → `origin/lunch/ai-weather` → `origin/lunch/screen` の順に **1 本ずつ**（3 本同時の octopus は 1 衝突で全中止）→ quiz-bot で `npm test` → `npm run dev` で mix を通す
 3. 那須：Snowsight で docs/Snowflake_Day5_検算SQL_20260909.sql の 1〜6（10 問以上・CHECK_DIR と CHECK_SHAPE と CHECK_CORRECT_CHOICE が全部 OK・除外前の全行が Day4 と一致・ID 1 は優良が低い）と、追加した候補問題の値
-4. デプロイ（14:00〜、失敗 2 回で打ち切り）：発表者（田中さん）の箱で `snow app setup` → `snow app deploy`。personal DB でも本人は開けるので Streamlit へは切り替えない。駄目なら localhost（`npm run dev`）で発表
+4. デプロイ（14:00〜、失敗 2 回で打ち切り）：A の那須の箱で `snow app setup` → `snow app deploy`（A の CoCo が昼に済ませていれば再デプロイだけ）。personal DB でも那須は開けるので、発表は那須の Mac の画面を映し田中さんが話す。駄目なら localhost（`npm run dev`）で発表
 5. 発表 3 問（案）：候補 #1「メンズファッションを買うのは 9 割女性」（つかみ）→ ID 1「優良顧客の単価は低い」（示唆）→ 虫食い 8（新モード）。ID 3 は除外後の 1 位を見てから決める
 6. 14:00〜14:30：演出（パンダ・レインボー）を CoCo に入らない人が足す。14:30 以降コードを触らない
 
