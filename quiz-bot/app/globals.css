@@ -164,7 +164,7 @@
 
 .adventure-content {
   position: relative;
-  z-index: 1;
+  z-index: 5;
   min-height: calc(100svh - 3.5rem);
 }
 
@@ -224,10 +224,10 @@
 
 .adventure-cart {
   position: fixed;
-  z-index: 2;
+  z-index: 1;
   left: 50%;
-  bottom: clamp(-18rem, -22vw, -11rem);
-  width: clamp(22rem, 48vw, 36rem);
+  bottom: -6rem;
+  width: 14rem;
   pointer-events: none;
   filter: drop-shadow(0 20px 20px rgb(2 8 23 / 0.68));
   animation: cart-rattle 0.72s ease-in-out infinite alternate;
@@ -242,6 +242,10 @@
 .adventure-stage[data-ride-state="parked"] .adventure-cart {
   opacity: 0;
   transform: translate3d(-50%, 45%, 0);
+}
+
+.adventure-stage[data-ride-state="running"] .adventure-cart {
+  opacity: 0;
 }
 
 .adventure-stage[data-ride-state="left-safe"] .adventure-panorama {
@@ -386,8 +390,8 @@
 
 @media (max-width: 700px) {
   .adventure-panorama { background-position: 50% center; }
-  .adventure-cart { bottom: -10.5rem; width: 22rem; opacity: 0.94; }
-  .adventure-content main { padding-bottom: 7rem; }
+  .adventure-cart { bottom: -5rem; width: 12rem; opacity: 0.94; }
+  .adventure-content main { padding-bottom: 5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

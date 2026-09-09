@@ -27,10 +27,10 @@ function playTone(freqs: number[], durEach: number) {
 }
 
 const preloaded = new Map<string, HTMLAudioElement>()
+const activeSE: HTMLAudioElement[] = []
 
 export function preloadAll() {
-  const files = ["/sound/se_correct.mp3", "/sound/se_wrong.mp3", "/sound/se_streak.mp3", "/sound/se_decide.mp3", "/sound/se_reveal.mp3"]
-  for (const src of files) {
+  for (const src of ["/sound/se_correct.mp3", "/sound/se_wrong.mp3"]) {
     if (!preloaded.has(src)) {
       const a = new Audio(src)
       a.preload = "auto"
@@ -40,18 +40,26 @@ export function preloadAll() {
   }
 }
 
-function tryPlayFile(src: string): Promise<boolean> {
+function stopAllSE() {
+  for (const a of activeSE) { a.pause(); a.currentTime = 0 }
+  activeSE.length = 0
+}
+
+function playSE(src: string, volume = 0.4): Promise<boolean> {
   return new Promise((resolve) => {
     if (globalMuted) { resolve(false); return }
+    stopAllSE()
     const cached = preloaded.get(src)
     if (cached && cached.readyState >= 2) {
       const clone = cached.cloneNode() as HTMLAudioElement
-      clone.volume = 0.4
+      clone.volume = volume
+      activeSE.push(clone)
       clone.play().then(() => resolve(true)).catch(() => resolve(false))
       return
     }
     const audio = new Audio(src)
-    audio.volume = 0.4
+    audio.volume = volume
+    activeSE.push(audio)
     let resolved = false
     const timer = setTimeout(() => {
       if (!resolved) { resolved = true; audio.oncanplaythrough = null; resolve(false) }
@@ -67,27 +75,12 @@ function tryPlayFile(src: string): Promise<boolean> {
 
 export async function playCorrect() {
   if (globalMuted) return
-  if (!(await tryPlayFile("/sound/se_correct.mp3"))) playTone([880, 1320], 0.15)
+  if (!(await playSE("/sound/se_correct.mp3"))) playTone([880, 1320], 0.15)
 }
 
 export async function playWrong() {
   if (globalMuted) return
-  if (!(await tryPlayFile("/sound/se_wrong.mp3"))) playTone([220], 0.4)
-}
-
-export async function playStreak() {
-  if (globalMuted) return
-  if (!(await tryPlayFile("/sound/se_streak.mp3"))) playTone([660, 880, 1100], 0.12)
-}
-
-export async function playDecide() {
-  if (globalMuted) return
-  if (!(await tryPlayFile("/sound/se_decide.mp3"))) playTone([440, 660], 0.08)
-}
-
-export async function playReveal() {
-  if (globalMuted) return
-  if (!(await tryPlayFile("/sound/se_reveal.mp3"))) playTone([330], 0.2)
+  if (!(await playSE("/sound/se_wrong.mp3"))) playTone([220], 0.4)
 }
 
 // --- BGM (2 tracks) ---
@@ -125,10 +118,6 @@ export function stopAllBgm() {
   stopTrack(bgmGame)
   stopTrack(bgmMenu)
 }
-
-// Legacy aliases
-export function startBgm() { startBgmGame() }
-export function stopBgm() { stopAllBgm() }
 
 export function setMuted(muted: boolean) {
   globalMuted = muted

@@ -1,64 +1,63 @@
 # progress_screen.md
 
-開始時刻: 12:43 (JST)
+## 画面の流れ
+splash (`/bg/home.jpg`) → mode (`/bg/mode.jpg`) → count (`/bg/count.jpg`) → deck (`/bg/category.jpg` + overlay) → game → result
 
-## できたこと（累積）
-1. **API** `/api/quiz` — ids（指定順返却）、n（LIMIT 既定10）、mode、SERIES/MASK/CHOICES
-2. **API** `/api/ranking` — 不正解率 TOP5
-3. **スプラッシュ** — 「TROCCO QUIZ ADVENTURE」「データの世界を駆け抜けろ」「β-LEAGUE ―楽天クイズ 知ってるつもり？」
-4. **スタート画面** — 回答者名、モード、問題数、デッキカード、**ドボントグル**、URL パラメータ
-5. **ゲーム画面** — Q k/n、進捗ドット、SCORE pt、EXIT、A/B ←→、ミュート🔊/🔇
-6. **トロッコ演出** — ride state 6状態（parked/running/left-safe/right-safe/left-lava/right-lava）
-7. **GIF 背景** — 未配置時は非表示、トロッコ CSS と両立
-8. **BGM 2曲** — /sound/bgm_menu.mp3（スプラッシュ・スタート・結果、音量0.2）、/sound/bgm.mp3（問題中、音量0.25）。画面切替で前の曲を止めてから次を鳴らす。ミュートは両方に効く
-9. **結果画面** result-screen.tsx — SCORE pt＋🌿、デッキ別正答率バー、TOP5、虹色見出し
-10. **虫食いチャート** — マスク位置修正、答え合わせでは全体図のみ
-11. **SE** — preloadAll、tryPlayFile 1500ms、se_decide（選択時）、se_reveal（判定時）、正解/不正解/連勝
-12. **定義の折りたたみ** + **mascot.tsx**（空）
+- ids か autostart パラメータがあれば splash〜deck を飛ばしてゲームへ
+- EXIT → mode 画面、「トップに戻る」→ mode 画面
 
-## 隠しコマンド（レインボーモード）
-- 回答者名を `party_parrot` → パロット40羽 + 虹背景ビカビカ
-- 回答者名を `rainbow_tanaka` → パロット10羽 + 虹背景 + 右上に「👑 RAINBOW TANAKA」バッジ
-- URL の `?player=party_parrot` でも発動
-- 判定は trim().toLowerCase() で行う。QZ_ANSWERS の PLAYER は入力のまま
-- 発動時に se_streak を鳴らす
-- 正解時は全羽 partyparrot、不正解時は sadparrot に切替、次の問題で元に戻す
-- 結果画面の見出しは全問正解でなくても虹色
-- 虹背景は z-index でトロッコの上、カードの下。filter: hue-rotate 0.5秒で一周
-- カードは bg-background/90 + backdrop-blur で読める
+## ホットスポット（ImageScreen の座標 %）
+| 画面 | 要素 | left | top | width | height |
+|------|------|------|-----|-------|--------|
+| splash | START 看板 | 15% | 59% | 29% | 15% |
+| mode | 虫食いクイズ | 27% | 38% | 22% | 45% |
+| mode | 4択クイズ | 51% | 38% | 22% | 45% |
+| count | 5問 | 26% | 38% | 15% | 33% |
+| count | 10問 | 42% | 38% | 15% | 33% |
+| count | 20問 | 59% | 38% | 15% | 33% |
+| count | 戻る | 32% | 77% | 13% | 8% |
+| count | 次へ | 50% | 77% | 17% | 8% |
+
+## トロッコの重なり修正
+- `.adventure-content` z-index: 5、`.adventure-cart` z-index: 1（カードより必ず後ろ）
+- トロッコは 14rem、bottom -6rem（小さくして邪魔にならない）
+- `[data-ride-state="running"]` で opacity: 0（問題表示中は非表示）
+- safe/lava のアニメ中だけ表示、答え合わせ中もカードの後ろ
+
+## パロットのサイズ分布（40羽の場合）
+- 25羽: 24〜80px（z-index 2、手前、速い bounce）
+- 10羽: 100〜200px（z-index 1、中間）
+- 5羽: 260〜420px（z-index 0、背景側、opacity 0.5、ゆっくり）
+
+## 効果音
+- 正解: se_correct.mp3 のみ
+- 不正解: se_wrong.mp3 のみ
+- 鳴らす前に鳴っている SE を全部停止（同時1つだけ）
+- 決定音・連勝音・カウントダウン・デレンッは削除済み
+
+## BGM 2曲
+- /sound/bgm_menu.mp3: splash→mode→count→deck→result（音量 0.2、ループ）
+- /sound/bgm.mp3: ゲーム中（音量 0.25、ループ）
+- 画面切替で前の曲を止めてから次を鳴らす。ミュートは両方に効く
+
+## 隠しコマンド
+- `party_parrot` → パロット40羽（巨大5羽含む）+ 虹背景ビカビカ
+- `rainbow_tanaka` → パロット10羽 + 👑バッジ + 虹背景
 
 ## ドボンモード
-- スタート画面の「ドボン（1 回間違えたら終了）」トグル（既定 OFF）
-- URL の `?dobon=1` でも ON
-- 不正解の答え合わせに「ドボン！」の赤い帯、ボタンは「結果を見る」で finished へ
-- 結果画面に「ドボン：{k} 問目で終了」
-- 全問正解なら通常どおり結果へ
-- se_wrong の後に se_reveal をもう一度鳴らす
+- トグル or `?dobon=1`。不正解→「ドボン！」赤帯→即結果
 
-## URL パラメータ一覧
-| パラメータ | 例 | 説明 |
-|---|---|---|
-| player | party_parrot | 回答者名（隠しコマンド判定あり） |
-| mode | highlow / blank / mix | ゲームモード |
-| deck | category | デッキ |
-| n | 5 | 問題数 |
-| ids | 501,1,8 | 指定問題ID（順序保持） |
-| autostart | 1 | スプラッシュをスキップして自動開始 |
-| dobon | 1 | ドボンモード ON |
-
-## 差し替え用ファイル
-```
-quiz-bot/public/gif/party_parrot/   — パロット GIF 群
-quiz-bot/public/gif/                — trocco_*.gif（トロッコ GIF、未配置可）
-quiz-bot/public/sound/bgm.mp3      — 問題中 BGM
-quiz-bot/public/sound/bgm_menu.mp3  — メニュー BGM
-quiz-bot/public/sound/se_*.mp3     — 効果音（correct, wrong, streak, decide, reveal）
-quiz-bot/public/adventure/          — lava-cave-track.webp, mine-cart.png
-```
+## URL パラメータ
+player, mode, deck, n, ids, autostart, dobon
 
 ## デプロイ URL
 https://jdc4mukm-on44798-ds-5daysinternship-2026.snowflakecomputing.app
 
-## 既知の問題
-- personal database (USER$KOYO_NASU)。発表者箱で再デプロイ推奨
-- mascot.tsx は空実装
+## 差し替え用ファイル
+```
+quiz-bot/public/bg/home.jpg, mode.jpg, count.jpg, category.jpg  — 画面背景
+quiz-bot/public/gif/party_parrot/  — パロット GIF 群
+quiz-bot/public/gif/trocco_*.gif   — トロッコ GIF（未配置可）
+quiz-bot/public/sound/bgm.mp3, bgm_menu.mp3, se_correct.mp3, se_wrong.mp3
+quiz-bot/public/adventure/lava-cave-track.webp, mine-cart.png
+```
