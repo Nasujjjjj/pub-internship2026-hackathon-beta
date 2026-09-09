@@ -49,6 +49,7 @@ function playSE(src: string, volume = 0.4): Promise<boolean> {
   return new Promise((resolve) => {
     if (globalMuted) { resolve(false); return }
     stopAllSE()
+    duckBgm()
     const cached = preloaded.get(src)
     if (cached && cached.readyState >= 2) {
       const clone = cached.cloneNode() as HTMLAudioElement
@@ -90,8 +91,23 @@ export async function playDecide() {
 
 // --- BGM (2 tracks) ---
 
+const BGM_VOL = 0.7
+const BGM_DUCK_VOL = 0.35
+const BGM_DUCK_MS = 1000
+
 let bgmGame: HTMLAudioElement | null = null
 let bgmMenu: HTMLAudioElement | null = null
+let duckTimer: ReturnType<typeof setTimeout> | null = null
+
+function duckBgm() {
+  if (bgmGame && !bgmGame.paused) bgmGame.volume = BGM_DUCK_VOL
+  if (bgmMenu && !bgmMenu.paused) bgmMenu.volume = BGM_DUCK_VOL
+  if (duckTimer) clearTimeout(duckTimer)
+  duckTimer = setTimeout(() => {
+    if (bgmGame && !bgmGame.paused) bgmGame.volume = BGM_VOL
+    if (bgmMenu && !bgmMenu.paused) bgmMenu.volume = BGM_VOL
+  }, BGM_DUCK_MS)
+}
 
 function stopTrack(track: HTMLAudioElement | null) {
   if (track) { track.pause(); track.currentTime = 0 }
@@ -102,8 +118,8 @@ export function startBgmGame() {
   if (!bgmGame) {
     bgmGame = new Audio("/sound/bgm.mp3")
     bgmGame.loop = true
-    bgmGame.volume = 0.25
   }
+  bgmGame.volume = BGM_VOL
   bgmGame.muted = globalMuted
   bgmGame.play().catch(() => {})
 }
@@ -113,8 +129,8 @@ export function startBgmMenu() {
   if (!bgmMenu) {
     bgmMenu = new Audio("/sound/bgm_menu.mp3")
     bgmMenu.loop = true
-    bgmMenu.volume = 0.2
   }
+  bgmMenu.volume = BGM_VOL
   bgmMenu.muted = globalMuted
   bgmMenu.play().catch(() => {})
 }
