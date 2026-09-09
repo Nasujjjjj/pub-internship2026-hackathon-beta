@@ -148,6 +148,37 @@ function FullChart({ series }: { series: SeriesPoint[] }) {
   )
 }
 
+// --- Splash Screen ---
+
+function SplashScreen({ onStart }: { onStart: () => void }) {
+  const [imgOk, setImgOk] = useState(true)
+  useEffect(() => {
+    const handler = () => onStart()
+    window.addEventListener("keydown", handler)
+    window.addEventListener("pointerdown", handler)
+    return () => {
+      window.removeEventListener("keydown", handler)
+      window.removeEventListener("pointerdown", handler)
+    }
+  }, [onStart])
+
+  return (
+    <div className="fixed inset-0 bg-black flex items-center justify-center cursor-pointer">
+      {imgOk && (
+        <img
+          src="/bg/home.jpg"
+          alt=""
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          onError={() => setImgOk(false)}
+        />
+      )}
+      <p className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white text-sm tracking-widest pointer-events-none" style={{ animation: "splash-blink 1s ease-in-out infinite" }}>
+        PRESS ANY BUTTON
+      </p>
+    </div>
+  )
+}
+
 // --- Component ---
 
 export function QuizGame() {
@@ -336,21 +367,7 @@ export function QuizGame() {
 
   // --- Splash ---
   if (phase === "splash") {
-    return (
-      <ImageScreen
-        src="/bg/home.jpg"
-        hotspots={[
-          { left: "15%", top: "59%", width: "29%", height: "15%", onClick: () => { startBgmMenu(); setPhase("mode") }, label: "START" },
-        ]}
-      >
-        {/* Fallback text when no image */}
-        <div className="text-center pointer-events-none">
-          <h1 className="text-5xl font-black text-white tracking-wider mb-3">TROCCO QUIZ ADVENTURE</h1>
-          <p className="text-lg text-blue-200 mb-1">データの世界を駆け抜けろ</p>
-          <p className="text-sm text-blue-300/70 tracking-widest">β-LEAGUE ― 楽天クイズ 知ってるつもり？</p>
-        </div>
-      </ImageScreen>
-    )
+    return <SplashScreen onStart={() => { startBgmMenu(); setPhase("mode") }} />
   }
 
   // --- Mode selection ---
