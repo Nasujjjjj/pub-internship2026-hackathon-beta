@@ -1,6 +1,7 @@
 "use client"
 
 let audioCtx: AudioContext | null = null
+let globalMuted = false
 
 function getCtx(): AudioContext {
   if (!audioCtx) audioCtx = new AudioContext()
@@ -8,6 +9,7 @@ function getCtx(): AudioContext {
 }
 
 function playTone(freqs: number[], durEach: number) {
+  if (globalMuted) return
   const ctx = getCtx()
   const gain = ctx.createGain()
   gain.gain.value = 0.15
@@ -24,32 +26,68 @@ function playTone(freqs: number[], durEach: number) {
   }
 }
 
-async function tryPlayFile(src: string): Promise<boolean> {
+const preloaded = new Map<string, HTMLAudioElement>()
+
+export function preloadAll() {
+  const files = ["/sound/se_correct.mp3", "/sound/se_wrong.mp3", "/sound/se_streak.mp3", "/sound/se_decide.mp3", "/sound/se_reveal.mp3"]
+  for (const src of files) {
+    if (!preloaded.has(src)) {
+      const a = new Audio(src)
+      a.preload = "auto"
+      a.load()
+      preloaded.set(src, a)
+    }
+  }
+}
+
+function tryPlayFile(src: string): Promise<boolean> {
   return new Promise((resolve) => {
+    if (globalMuted) { resolve(false); return }
+    const cached = preloaded.get(src)
+    if (cached && cached.readyState >= 2) {
+      const clone = cached.cloneNode() as HTMLAudioElement
+      clone.volume = 0.4
+      clone.play().then(() => resolve(true)).catch(() => resolve(false))
+      return
+    }
     const audio = new Audio(src)
     audio.volume = 0.4
-    audio.oncanplaythrough = () => { audio.play().then(() => resolve(true)).catch(() => resolve(false)) }
-    audio.onerror = () => resolve(false)
-    setTimeout(() => resolve(false), 300)
+    let resolved = false
+    const timer = setTimeout(() => {
+      if (!resolved) { resolved = true; audio.oncanplaythrough = null; resolve(false) }
+    }, 1500)
+    audio.oncanplaythrough = () => {
+      if (!resolved) { resolved = true; clearTimeout(timer); audio.play().then(() => resolve(true)).catch(() => resolve(false)) }
+    }
+    audio.onerror = () => {
+      if (!resolved) { resolved = true; clearTimeout(timer); resolve(false) }
+    }
   })
 }
 
 export async function playCorrect() {
-  if (!(await tryPlayFile("/sound/se_correct.mp3"))) {
-    playTone([880, 1320], 0.15)
-  }
+  if (globalMuted) return
+  if (!(await tryPlayFile("/sound/se_correct.mp3"))) playTone([880, 1320], 0.15)
 }
 
 export async function playWrong() {
-  if (!(await tryPlayFile("/sound/se_wrong.mp3"))) {
-    playTone([220], 0.4)
-  }
+  if (globalMuted) return
+  if (!(await tryPlayFile("/sound/se_wrong.mp3"))) playTone([220], 0.4)
 }
 
 export async function playStreak() {
-  if (!(await tryPlayFile("/sound/se_streak.mp3"))) {
-    playTone([660, 880, 1100], 0.12)
-  }
+  if (globalMuted) return
+  if (!(await tryPlayFile("/sound/se_streak.mp3"))) playTone([660, 880, 1100], 0.12)
+}
+
+export async function playDecide() {
+  if (globalMuted) return
+  if (!(await tryPlayFile("/sound/se_decide.mp3"))) playTone([440, 660], 0.08)
+}
+
+export async function playReveal() {
+  if (globalMuted) return
+  if (!(await tryPlayFile("/sound/se_reveal.mp3"))) playTone([330], 0.2)
 }
 
 let bgmAudio: HTMLAudioElement | null = null
@@ -59,6 +97,7 @@ export function startBgm() {
   bgmAudio = new Audio("/sound/bgm.mp3")
   bgmAudio.loop = true
   bgmAudio.volume = 0.25
+  bgmAudio.muted = globalMuted
   bgmAudio.play().catch(() => {})
 }
 
@@ -67,5 +106,6 @@ export function stopBgm() {
 }
 
 export function setMuted(muted: boolean) {
+  globalMuted = muted
   if (bgmAudio) bgmAudio.muted = muted
 }

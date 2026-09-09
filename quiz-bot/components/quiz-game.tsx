@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Mascot } from "@/components/mascot"
 import { BackgroundGif, type GifState } from "@/components/background-gif"
 import { ResultScreen } from "@/components/result-screen"
+import { useAdventureRide, type RideState } from "@/components/adventure-stage"
 import { dummyBlankQuestions } from "@/lib/dummy-blank"
-import { playCorrect, playWrong, playStreak, startBgm, stopBgm, setMuted } from "@/lib/sound-manager"
+import { playCorrect, playWrong, playStreak, playDecide, playReveal, startBgm, stopBgm, setMuted, preloadAll } from "@/lib/sound-manager"
 
 // --- Types ---
 
@@ -27,7 +28,7 @@ interface AnswerRecord { deck: string; correct: boolean }
 
 type Phase = "splash" | "start" | "loading" | "question" | "moving" | "result" | "finished"
 
-const MOVE_MS = 1500
+const MOVE_MS = 1650
 
 const DECKS = [
   { value: "all", label: "すべて", emoji: "🎯" },
@@ -148,6 +149,7 @@ function FullChart({ series }: { series: SeriesPoint[] }) {
 // --- Component ---
 
 export function QuizGame() {
+  const { setRideState } = useAdventureRide()
   const [playerName, setPlayerName] = useState("guest")
   const [mode, setMode] = useState("mix")
   const [nQuestions, setNQuestions] = useState(10)
@@ -213,15 +215,18 @@ export function QuizGame() {
       setAnswers([])
       setGifState("wait")
       setPhase("question")
+      setRideState("running")
       startBgm()
     } catch (e) {
       setError(e instanceof Error ? e.message : "読み込み失敗")
       setPhase("start")
+      setRideState("parked")
     }
   }, [nQuestions])
 
   const handleStart = (selectedDeck: string) => {
     setDeck(selectedDeck)
+    preloadAll()
     fetchQuestions(selectedDeck, mode, idsParam || undefined, nQuestions)
   }
 
@@ -233,6 +238,7 @@ export function QuizGame() {
     setTotal(0)
     setPhase("start")
     setAnswers([])
+    setRideState("parked")
     stopBgm()
   }
 
@@ -242,6 +248,11 @@ export function QuizGame() {
     if (!q) return
     setChosen(choice)
     const correct = choice === q.CORRECT
+
+    // Ride direction
+    const direction = q.QTYPE === "blank" ? (choice % 2 === 0 ? "left" : "right") : (choice === 0 ? "left" : "right")
+    setRideState(`${direction}-${correct ? "safe" : "lava"}` as RideState)
+    playDecide()
 
     // POST answer immediately
     fetch("/api/answer", {
@@ -257,6 +268,7 @@ export function QuizGame() {
 
     moveTimerRef.current = setTimeout(() => {
       setLastCorrect(correct)
+      playReveal()
       if (correct) {
         setScore((s) => s + 1)
         setStreak((prev) => {
@@ -281,6 +293,7 @@ export function QuizGame() {
   const handleNext = () => {
     if (currentIdx + 1 >= questions.length) {
       setPhase("finished")
+      setRideState("parked")
       stopBgm()
     } else {
       setCurrentIdx((i) => i + 1)
@@ -289,6 +302,7 @@ export function QuizGame() {
       setShowSql(false)
       setShowDef(false)
       setGifState("wait")
+      setRideState("running")
     }
   }
 
@@ -309,9 +323,9 @@ export function QuizGame() {
           <div className="absolute w-80 h-80 rounded-full opacity-15" style={{ background: "radial-gradient(circle, #4f9cf7 0%, transparent 70%)", bottom: "15%", right: "5%" }} />
           <div className="absolute w-64 h-64 rounded-full opacity-10" style={{ background: "radial-gradient(circle, #29b5e8 0%, transparent 70%)", top: "50%", left: "50%" }} />
         </div>
-        <h1 className="text-6xl font-black text-white tracking-wider mb-4 relative z-10">β-LEAGUE</h1>
-        <p className="text-lg text-blue-200 mb-2 relative z-10">データでひらく、新しい視点。</p>
-        <p className="text-sm text-blue-300/70 mb-8 relative z-10 tracking-widest">DATA × QUIZ × ANALYSIS</p>
+        <h1 className="text-6xl font-black text-white tracking-wider mb-4 relative z-10">TROCCO QUIZ ADVENTURE</h1>
+        <p className="text-lg text-blue-200 mb-2 relative z-10">データの世界を駆け抜けろ</p>
+        <p className="text-sm text-blue-300/70 mb-8 relative z-10 tracking-widest">β-LEAGUE ― 楽天クイズ 知ってるつもり？</p>
         <Button
           size="lg"
           className="relative z-10 text-lg px-8 py-6"
@@ -327,10 +341,10 @@ export function QuizGame() {
   if (phase === "start") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-lg">
+        <Card className="w-full max-w-lg adventure-card">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">β-LEAGUE</CardTitle>
-            <p className="text-muted-foreground text-sm mt-1">楽天クイズ ― 知ってるつもり？</p>
+            <CardTitle className="text-2xl">TROCCO QUIZ ADVENTURE</CardTitle>
+            <p className="text-muted-foreground text-sm mt-1">β-LEAGUE ― 楽天クイズ 知ってるつもり？</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && <p className="text-destructive text-sm text-center">{error}</p>}
@@ -385,7 +399,7 @@ export function QuizGame() {
 
   // --- Finished ---
   if (phase === "finished") {
-    return <ResultScreen score={score} total={total} answers={answers} onRetry={() => fetchQuestions(deck, mode, idsParam || undefined, nQuestions)} onTop={() => { setQuestions([]); setPhase("start") }} />
+    return <ResultScreen score={score} total={total} answers={answers} onRetry={() => { preloadAll(); fetchQuestions(deck, mode, idsParam || undefined, nQuestions) }} onTop={() => { setQuestions([]); setPhase("start"); setRideState("parked") }} />
   }
 
   if (!q) return null
@@ -403,7 +417,7 @@ export function QuizGame() {
       <div className="fixed bottom-4 left-4 z-50"><Mascot streak={streak} isCorrect={lastCorrect} /></div>
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-1">
+      <div className="flex items-center justify-between px-1 adventure-scorebar py-2 px-3">
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold">Q {currentIdx + 1} / {questions.length}</span>
           {/* Progress dots */}
@@ -423,7 +437,7 @@ export function QuizGame() {
       {streak >= 2 && <div className="text-center text-orange-500 font-bold text-sm animate-bounce">{streak} 連勝!</div>}
 
       {/* Question Card */}
-      <Card className={showGif ? "bg-background/85 backdrop-blur" : ""}>
+      <Card className={`adventure-card ${showGif ? "bg-background/85 backdrop-blur" : ""}`}>
         <CardHeader>
           <Badge variant="outline" className="text-xs w-fit mb-1">{DECKS.find((d) => d.value === q.DECK)?.label ?? q.DECK}</Badge>
           <CardTitle className="text-lg leading-relaxed">{q.QUESTION_TEXT}</CardTitle>
@@ -439,10 +453,10 @@ export function QuizGame() {
           {phase === "question" && !isBlank && (
             <div className="grid grid-cols-2 gap-3">
               <Button size="lg" className="h-20 text-base whitespace-normal" onClick={() => handleAnswer(0)}>
-                <Badge className="mr-2">A</Badge>{q.ITEM_A}
+                <Badge className="mr-2">A</Badge>← {q.ITEM_A}
               </Button>
               <Button size="lg" variant="outline" className="h-20 text-base whitespace-normal" onClick={() => handleAnswer(1)}>
-                <Badge variant="outline" className="mr-2">B</Badge>{q.ITEM_B}
+                <Badge variant="outline" className="mr-2">B</Badge>{q.ITEM_B} →
               </Button>
             </div>
           )}
@@ -452,7 +466,7 @@ export function QuizGame() {
             <div className="grid grid-cols-2 gap-3">
               {q.CHOICES.map((c, i) => (
                 <button key={i} className="rounded-lg border p-3 text-center hover:ring-2 hover:ring-primary transition-all" onClick={() => handleAnswer(i)}>
-                  <div className="text-xs font-semibold mb-1">{String.fromCharCode(65 + i)}</div>
+                  <div className="text-xs font-semibold mb-1">{i % 2 === 0 ? "← " : ""}{String.fromCharCode(65 + i)}{i % 2 === 1 ? " →" : ""}</div>
                   <MiniLineChart points={c.series} width={100} height={40} strokeColor="var(--foreground)" />
                   <div className="text-xs text-muted-foreground mt-1 truncate">{c.label}</div>
                 </button>
