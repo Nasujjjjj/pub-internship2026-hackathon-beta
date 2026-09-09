@@ -21,18 +21,23 @@ export function ResultScreen({
   score,
   total,
   answers,
+  rainbow,
+  dobonAt,
   onRetry,
   onTop,
 }: {
   score: number
   total: number
   answers: AnswerRecord[]
+  rainbow?: boolean
+  dobonAt?: number | null
   onRetry: () => void
   onTop: () => void
 }) {
   const [ranking, setRanking] = useState<RankingRow[]>([])
   const pt = score * 100
   const allCorrect = score === total && total > 0
+  const showRainbowTitle = rainbow || allCorrect
 
   useEffect(() => {
     fetch("/api/ranking")
@@ -64,7 +69,7 @@ export function ResultScreen({
           <CardTitle
             className="text-2xl"
             style={
-              allCorrect
+              showRainbowTitle
                 ? {
                     background: "linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet)",
                     WebkitBackgroundClip: "text",
@@ -75,6 +80,9 @@ export function ResultScreen({
           >
             結果発表
           </CardTitle>
+          {dobonAt != null && (
+            <p className="text-destructive font-bold mt-1">ドボン：{dobonAt} 問目で終了</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-center gap-2">

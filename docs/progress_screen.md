@@ -2,52 +2,58 @@
 
 開始時刻: 12:43 (JST)
 
-## できたこと
-1. **API** `/api/quiz` — ids（指定順返却）、n（LIMIT 既定10）、mode、SERIES/MASK_FROM/MASK_TO/CHOICES
+## できたこと（累積）
+1. **API** `/api/quiz` — ids（指定順返却）、n（LIMIT 既定10）、mode、SERIES/MASK/CHOICES
 2. **API** `/api/ranking` — 不正解率 TOP5
-3. **スプラッシュ** — 紺背景＋青ブロブ、「TROCCO QUIZ ADVENTURE」「データの世界を駆け抜けろ」「β-LEAGUE ― 楽天クイズ 知ってるつもり？」。autostart/ids でスキップ
-4. **スタート画面** — 回答者名、モード（HL/虫食い/ミックス）、問題数（5/10/20）、色付きデッキカード＋絵文字。URL パラメータ対応
-5. **ゲーム画面** — Q k/n＋進捗ドット、SCORE pt、EXIT、A/B バッジ＋←→、ミュート🔊/🔇
-6. **トロッコ演出** — 駒場さんの codex/trolley-adventure-prototype を統合。adventure-stage.tsx（Context）、globals.css（CSS アニメーション）、page.tsx（AdventureStage ラップ）、lava-cave-track.webp + mine-cart.png
-7. **GIF 背景** — background-gif.tsx（GIF 未配置時は非表示、トロッコ CSS と両立）
-8. **遷移** — 選択→move_l/r（MOVE_MS=1650ms、脱線アニメと同期）→判定→answer_true/false→wait
+3. **スプラッシュ** — 「TROCCO QUIZ ADVENTURE」「データの世界を駆け抜けろ」「β-LEAGUE ―楽天クイズ 知ってるつもり？」
+4. **スタート画面** — 回答者名、モード、問題数、デッキカード、**ドボントグル**、URL パラメータ
+5. **ゲーム画面** — Q k/n、進捗ドット、SCORE pt、EXIT、A/B ←→、ミュート🔊/🔇
+6. **トロッコ演出** — ride state 6状態（parked/running/left-safe/right-safe/left-lava/right-lava）
+7. **GIF 背景** — 未配置時は非表示、トロッコ CSS と両立
+8. **BGM 2曲** — /sound/bgm_menu.mp3（スプラッシュ・スタート・結果、音量0.2）、/sound/bgm.mp3（問題中、音量0.25）。画面切替で前の曲を止めてから次を鳴らす。ミュートは両方に効く
 9. **結果画面** result-screen.tsx — SCORE pt＋🌿、デッキ別正答率バー、TOP5、虹色見出し
 10. **虫食いチャート** — マスク位置修正、答え合わせでは全体図のみ
-11. **BGM + SE** — preloadAll で起動時に 5 ファイルプリロード。tryPlayFile タイムアウト 1500ms（二重再生防止）。決定音 se_decide.mp3、判定音 se_reveal.mp3、正解/不正解/連勝。ミュートは SE にも効く
-12. **定義の折りたたみ** + **mascot.tsx**（空、左下 fixed）
+11. **SE** — preloadAll、tryPlayFile 1500ms、se_decide（選択時）、se_reveal（判定時）、正解/不正解/連勝
+12. **定義の折りたたみ** + **mascot.tsx**（空）
 
-## トロッコ演出＝駒場さんの枝を統合
+## 隠しコマンド（レインボーモード）
+- 回答者名を `party_parrot` → パロット40羽 + 虹背景ビカビカ
+- 回答者名を `rainbow_tanaka` → パロット10羽 + 虹背景 + 右上に「👑 RAINBOW TANAKA」バッジ
+- URL の `?player=party_parrot` でも発動
+- 判定は trim().toLowerCase() で行う。QZ_ANSWERS の PLAYER は入力のまま
+- 発動時に se_streak を鳴らす
+- 正解時は全羽 partyparrot、不正解時は sadparrot に切替、次の問題で元に戻す
+- 結果画面の見出しは全問正解でなくても虹色
+- 虹背景は z-index でトロッコの上、カードの下。filter: hue-rotate 0.5秒で一周
+- カードは bg-background/90 + backdrop-blur で読める
 
-### Ride State の対応表
-| ride state | 発火タイミング | CSS アニメーション |
+## ドボンモード
+- スタート画面の「ドボン（1 回間違えたら終了）」トグル（既定 OFF）
+- URL の `?dobon=1` でも ON
+- 不正解の答え合わせに「ドボン！」の赤い帯、ボタンは「結果を見る」で finished へ
+- 結果画面に「ドボン：{k} 問目で終了」
+- 全問正解なら通常どおり結果へ
+- se_wrong の後に se_reveal をもう一度鳴らす
+
+## URL パラメータ一覧
+| パラメータ | 例 | 説明 |
 |---|---|---|
-| `parked` | スプラッシュ、スタート画面、結果画面、EXIT | トロッコ非表示 |
-| `running` | 問題表示中、次の問題へ | 洞窟ゆれ＋レール火花＋トロッコ揺れ＋分岐レール表示 |
-| `left-safe` | 左選択＋正解 | 左カーブして戻る |
-| `right-safe` | 右選択＋正解 | 右カーブして戻る |
-| `left-lava` | 左選択＋不正解 | 左脱線→マグマダイブ（1.65s） |
-| `right-lava` | 右選択＋不正解 | 右脱線→マグマダイブ（1.65s） |
+| player | party_parrot | 回答者名（隠しコマンド判定あり） |
+| mode | highlow / blank / mix | ゲームモード |
+| deck | category | デッキ |
+| n | 5 | 問題数 |
+| ids | 501,1,8 | 指定問題ID（順序保持） |
+| autostart | 1 | スプラッシュをスキップして自動開始 |
+| dobon | 1 | ドボンモード ON |
 
-### 左右の対応
-- High & Low: A（choice 0）= left、B（choice 1）= right
-- 虫食い: A・C（偶数）= left、B・D（奇数）= right
-
-## 差し替え用ファイルの置き場と名前
+## 差し替え用ファイル
 ```
-quiz-bot/public/gif/
-  trocco_wait.gif, trocco_move_l.gif, trocco_move_r.gif, trocco_answer_true.gif, trocco_answer_false_.gif
-
-quiz-bot/public/sound/
-  bgm.mp3        ← docs/効果音,BGM/ からコピー済
-  se_correct.mp3 ← docs/SFX/正解.mp3
-  se_wrong.mp3   ← docs/SFX/不正解.mp3
-  se_streak.mp3  ← docs/SFX/デレンッ.mp3
-  se_decide.mp3  ← docs/SFX/決定音.mp3（選択肢押下時）
-  se_reveal.mp3  ← docs/SFX/カウントダウン.mp3（判定表示時）
-
-quiz-bot/public/adventure/
-  lava-cave-track.webp — 洞窟背景
-  mine-cart.png — トロッコ画像
+quiz-bot/public/gif/party_parrot/   — パロット GIF 群
+quiz-bot/public/gif/                — trocco_*.gif（トロッコ GIF、未配置可）
+quiz-bot/public/sound/bgm.mp3      — 問題中 BGM
+quiz-bot/public/sound/bgm_menu.mp3  — メニュー BGM
+quiz-bot/public/sound/se_*.mp3     — 効果音（correct, wrong, streak, decide, reveal）
+quiz-bot/public/adventure/          — lava-cave-track.webp, mine-cart.png
 ```
 
 ## デプロイ URL
@@ -56,4 +62,3 @@ https://jdc4mukm-on44798-ds-5daysinternship-2026.snowflakecomputing.app
 ## 既知の問題
 - personal database (USER$KOYO_NASU)。発表者箱で再デプロイ推奨
 - mascot.tsx は空実装
-- GIF ファイルは未配置（public/gif/ に置けば自動表示。トロッコ CSS と両立）

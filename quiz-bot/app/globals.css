@@ -402,3 +402,97 @@
   .adventure-cart { transform: translateX(-50%); }
   .adventure-stage[data-ride-state="parked"] .adventure-cart { opacity: 0; }
 }
+
+/* ===== Rainbow Mode ===== */
+.rainbow-mode {
+  position: relative;
+}
+
+.rainbow-bg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(270deg, red, orange, yellow, green, cyan, blue, indigo, violet);
+  background-size: 1400% 1400%;
+  animation: rainbow-shift 1s linear infinite, rainbow-hue 0.5s linear infinite;
+  opacity: 0.85;
+}
+
+.rainbow-mode .adventure-card,
+.rainbow-mode .adventure-scorebar {
+  background: rgb(255 255 255 / 0.9) !important;
+  backdrop-filter: blur(16px);
+  animation: rainbow-glow 1s ease-in-out infinite alternate;
+}
+
+.dark .rainbow-mode .adventure-card,
+.dark .rainbow-mode .adventure-scorebar {
+  background: rgb(15 23 42 / 0.9) !important;
+}
+
+.rainbow-mode h1, .rainbow-mode h2, .rainbow-mode h3,
+.rainbow-mode [class*="CardTitle"] {
+  background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes rainbow-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+@keyframes rainbow-hue {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+@keyframes rainbow-glow {
+  0% { box-shadow: 0 0 20px rgb(255 0 0 / 0.5), 0 0 40px rgb(0 255 0 / 0.3); }
+  100% { box-shadow: 0 0 20px rgb(0 0 255 / 0.5), 0 0 40px rgb(255 0 255 / 0.3); }
+}
+
+.parrot-rain-container {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.parrot-bird {
+  position: absolute;
+  animation: parrot-bounce 0.6s ease-in-out infinite alternate, parrot-drift 6s ease-in-out infinite alternate;
+  image-rendering: pixelated;
+}
+
+@keyframes parrot-bounce {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-20px); }
+}
+
+@keyframes parrot-drift {
+  0% { margin-left: 0; }
+  100% { margin-left: 3vw; }
+}
+
+.rainbow-tanaka-badge {
+  position: fixed;
+  top: 4.5rem;
+  right: 1rem;
+  z-index: 50;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, red, orange, yellow, green, blue, violet) border-box;
+  font-weight: 800;
+  font-size: 0.875rem;
+  animation: rainbow-shift 2s linear infinite;
+  background-size: 100% 100%, 600% 100%;
+}
+
+.dark .rainbow-tanaka-badge {
+  background: linear-gradient(#1e293b, #1e293b) padding-box, linear-gradient(90deg, red, orange, yellow, green, blue, violet) border-box;
+  color: #f8fafc;
+}

@@ -90,22 +90,48 @@ export async function playReveal() {
   if (!(await tryPlayFile("/sound/se_reveal.mp3"))) playTone([330], 0.2)
 }
 
-let bgmAudio: HTMLAudioElement | null = null
+// --- BGM (2 tracks) ---
 
-export function startBgm() {
-  if (bgmAudio) { bgmAudio.play().catch(() => {}); return }
-  bgmAudio = new Audio("/sound/bgm.mp3")
-  bgmAudio.loop = true
-  bgmAudio.volume = 0.25
-  bgmAudio.muted = globalMuted
-  bgmAudio.play().catch(() => {})
+let bgmGame: HTMLAudioElement | null = null
+let bgmMenu: HTMLAudioElement | null = null
+
+function stopTrack(track: HTMLAudioElement | null) {
+  if (track) { track.pause(); track.currentTime = 0 }
 }
 
-export function stopBgm() {
-  if (bgmAudio) { bgmAudio.pause(); bgmAudio.currentTime = 0 }
+export function startBgmGame() {
+  stopTrack(bgmMenu)
+  if (!bgmGame) {
+    bgmGame = new Audio("/sound/bgm.mp3")
+    bgmGame.loop = true
+    bgmGame.volume = 0.25
+  }
+  bgmGame.muted = globalMuted
+  bgmGame.play().catch(() => {})
 }
+
+export function startBgmMenu() {
+  stopTrack(bgmGame)
+  if (!bgmMenu) {
+    bgmMenu = new Audio("/sound/bgm_menu.mp3")
+    bgmMenu.loop = true
+    bgmMenu.volume = 0.2
+  }
+  bgmMenu.muted = globalMuted
+  bgmMenu.play().catch(() => {})
+}
+
+export function stopAllBgm() {
+  stopTrack(bgmGame)
+  stopTrack(bgmMenu)
+}
+
+// Legacy aliases
+export function startBgm() { startBgmGame() }
+export function stopBgm() { stopAllBgm() }
 
 export function setMuted(muted: boolean) {
   globalMuted = muted
-  if (bgmAudio) bgmAudio.muted = muted
+  if (bgmGame) bgmGame.muted = muted
+  if (bgmMenu) bgmMenu.muted = muted
 }
