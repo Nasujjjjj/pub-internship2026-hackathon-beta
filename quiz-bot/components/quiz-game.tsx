@@ -9,8 +9,9 @@ import { BackgroundGif, type GifState } from "@/components/background-gif"
 import { ResultScreen } from "@/components/result-screen"
 import { useAdventureRide, type RideState } from "@/components/adventure-stage"
 import { dummyBlankQuestions } from "@/lib/dummy-blank"
-import { playCorrect, playWrong, playStreak, playDecide, playReveal, startBgmGame, startBgmMenu, stopAllBgm, setMuted, preloadAll } from "@/lib/sound-manager"
+import { playCorrect, playWrong, startBgmGame, startBgmMenu, stopAllBgm, setMuted, preloadAll } from "@/lib/sound-manager"
 import { ParrotRain } from "@/components/parrot-rain"
+import { ImageScreen } from "@/components/image-screen"
 
 // --- Types ---
 
@@ -27,7 +28,7 @@ interface Question {
 
 interface AnswerRecord { deck: string; correct: boolean }
 
-type Phase = "splash" | "start" | "loading" | "question" | "moving" | "result" | "finished"
+type Phase = "splash" | "mode" | "count" | "start" | "loading" | "question" | "moving" | "result" | "finished"
 
 const MOVE_MS = 1650
 
@@ -180,8 +181,8 @@ export function QuizGame() {
 
   function checkRainbow(name: string) {
     const low = name.trim().toLowerCase()
-    if (low === "party_parrot") { setRainbow(true); setRainbowType("parrot"); playStreak(); return true }
-    if (low === "rainbow_tanaka") { setRainbow(true); setRainbowType("tanaka"); playStreak(); return true }
+    if (low === "party_parrot") { setRainbow(true); setRainbowType("parrot"); return true }
+    if (low === "rainbow_tanaka") { setRainbow(true); setRainbowType("tanaka"); return true }
     setRainbow(false); setRainbowType(null); return false
   }
 
@@ -250,7 +251,7 @@ export function QuizGame() {
     setScore(0)
     setStreak(0)
     setTotal(0)
-    setPhase("start")
+    setPhase("mode")
     setAnswers([])
     setRideState("parked")
     stopAllBgm()
@@ -267,7 +268,6 @@ export function QuizGame() {
     // Ride direction
     const direction = q.QTYPE === "blank" ? (choice % 2 === 0 ? "left" : "right") : (choice === 0 ? "left" : "right")
     setRideState(`${direction}-${correct ? "safe" : "lava"}` as RideState)
-    playDecide()
 
     // POST answer immediately
     fetch("/api/answer", {
@@ -283,21 +283,16 @@ export function QuizGame() {
 
     moveTimerRef.current = setTimeout(() => {
       setLastCorrect(correct)
-      playReveal()
       if (correct) {
         setScore((s) => s + 1)
-        setStreak((prev) => {
-          const next = prev + 1
-          if (next >= 3) playStreak()
-          else playCorrect()
-          return next
-        })
+        setStreak((prev) => prev + 1)
+        playCorrect()
         if (rainbow) setParrotOverride("partyparrot")
       } else {
         setStreak(0)
         playWrong()
         if (rainbow) setParrotOverride("sadparrot")
-        if (dobon) { setDobonAt(currentIdx + 1); setTimeout(() => playReveal(), 400) }
+        if (dobon) setDobonAt(currentIdx + 1)
       }
       setTotal((t) => t + 1)
       setAnswers((a) => [...a, { deck: DECKS.find((d) => d.value === q.DECK)?.label ?? q.DECK, correct }])
@@ -337,32 +332,61 @@ export function QuizGame() {
   // --- Splash ---
   if (phase === "splash") {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center"
-        style={{ background: "linear-gradient(135deg, #0a1628 0%, #1a2a4a 40%, #0f1f3a 100%)" }}>
-        {/* Blobs */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute w-96 h-96 rounded-full opacity-20" style={{ background: "radial-gradient(circle, #29b5e8 0%, transparent 70%)", top: "10%", left: "10%" }} />
-          <div className="absolute w-80 h-80 rounded-full opacity-15" style={{ background: "radial-gradient(circle, #4f9cf7 0%, transparent 70%)", bottom: "15%", right: "5%" }} />
-          <div className="absolute w-64 h-64 rounded-full opacity-10" style={{ background: "radial-gradient(circle, #29b5e8 0%, transparent 70%)", top: "50%", left: "50%" }} />
+      <ImageScreen
+        src="/bg/home.jpg"
+        hotspots={[
+          { left: "15%", top: "59%", width: "29%", height: "15%", onClick: () => { startBgmMenu(); setPhase("mode") }, label: "START" },
+        ]}
+      >
+        {/* Fallback text when no image */}
+        <div className="text-center pointer-events-none">
+          <h1 className="text-5xl font-black text-white tracking-wider mb-3">TROCCO QUIZ ADVENTURE</h1>
+          <p className="text-lg text-blue-200 mb-1">データの世界を駆け抜けろ</p>
+          <p className="text-sm text-blue-300/70 tracking-widest">β-LEAGUE ― 楽天クイズ 知ってるつもり？</p>
         </div>
-        <h1 className="text-6xl font-black text-white tracking-wider mb-4 relative z-10">TROCCO QUIZ ADVENTURE</h1>
-        <p className="text-lg text-blue-200 mb-2 relative z-10">データの世界を駆け抜けろ</p>
-        <p className="text-sm text-blue-300/70 mb-8 relative z-10 tracking-widest">β-LEAGUE ― 楽天クイズ 知ってるつもり？</p>
-        <Button
-          size="lg"
-          className="relative z-10 text-lg px-8 py-6"
-          onClick={() => { startBgmMenu(); setPhase("start") }}
-        >
-          START →
-        </Button>
-      </div>
+      </ImageScreen>
     )
   }
 
-  // --- Start Screen ---
+  // --- Mode selection ---
+  if (phase === "mode") {
+    return (
+      <ImageScreen
+        src="/bg/mode.jpg"
+        hotspots={[
+          { left: "27%", top: "38%", width: "22%", height: "45%", onClick: () => { setMode("blank"); setPhase("count") }, label: "虫食いクイズ" },
+          { left: "51%", top: "38%", width: "22%", height: "45%", onClick: () => { setMode("mix"); setPhase("count") }, label: "4択クイズ" },
+        ]}
+      />
+    )
+  }
+
+  // --- Count selection ---
+  if (phase === "count") {
+    return (
+      <ImageScreen
+        src="/bg/count.jpg"
+        hotspots={[
+          { left: "26%", top: "38%", width: "15%", height: "33%", onClick: () => setNQuestions(5), label: "5問", highlight: nQuestions === 5 },
+          { left: "42%", top: "38%", width: "15%", height: "33%", onClick: () => setNQuestions(10), label: "10問", highlight: nQuestions === 10 },
+          { left: "59%", top: "38%", width: "15%", height: "33%", onClick: () => setNQuestions(20), label: "20問", highlight: nQuestions === 20 },
+          { left: "32%", top: "77%", width: "13%", height: "8%", onClick: () => setPhase("mode"), label: "戻る" },
+          { left: "50%", top: "77%", width: "17%", height: "8%", onClick: () => setPhase("start"), label: "次へ" },
+        ]}
+      />
+    )
+  }
+
+  // --- Deck Screen (start) ---
   if (phase === "start") {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="relative min-h-[60vh]">
+        {/* Background image with overlay */}
+        <div className="fixed inset-0 -z-10">
+          <img src="/bg/category.jpg" alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        </div>
+        <div className="flex items-center justify-center min-h-[60vh]">
         <Card className="w-full max-w-lg adventure-card">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">TROCCO QUIZ ADVENTURE</CardTitle>
@@ -417,6 +441,7 @@ export function QuizGame() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     )
   }
@@ -427,7 +452,7 @@ export function QuizGame() {
 
   // --- Finished ---
   if (phase === "finished") {
-    return <ResultScreen score={score} total={total} answers={answers} rainbow={rainbow} dobonAt={dobonAt} onRetry={() => { preloadAll(); fetchQuestions(deck, mode, idsParam || undefined, nQuestions) }} onTop={() => { setQuestions([]); setPhase("start"); setRideState("parked") }} />
+    return <ResultScreen score={score} total={total} answers={answers} rainbow={rainbow} dobonAt={dobonAt} onRetry={() => { preloadAll(); fetchQuestions(deck, mode, idsParam || undefined, nQuestions) }} onTop={() => { setQuestions([]); setPhase("mode"); setRideState("parked") }} />
   }
 
   if (!q) return null
