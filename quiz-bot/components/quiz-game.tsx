@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Mascot } from "@/components/mascot"
+import { useAdventureRide, type RideState } from "@/components/adventure-stage"
 import { dummyBlankQuestions } from "@/lib/dummy-blank"
 
 // --- Types ---
@@ -186,6 +187,7 @@ function BlankChart({
 // --- Component ---
 
 export function QuizGame() {
+  const { setRideState } = useAdventureRide()
   const [playerName, setPlayerName] = useState("guest")
   const [mode, setMode] = useState("mix")
   const [deck, setDeck] = useState("all")
@@ -203,6 +205,7 @@ export function QuizGame() {
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null)
 
   const fetchQuestions = useCallback(async (selectedDeck: string, selectedMode: string) => {
+    setRideState("running")
     setPhase("loading")
     setError(null)
     try {
@@ -224,10 +227,11 @@ export function QuizGame() {
       setLastCorrect(null)
       setPhase("question")
     } catch (e) {
+      setRideState("parked")
       setError(e instanceof Error ? e.message : "読み込み失敗")
       setPhase("start")
     }
-  }, [])
+  }, [setRideState])
 
   const fetchRanking = useCallback(async () => {
     try {
@@ -250,6 +254,8 @@ export function QuizGame() {
     if (!q) return
     setChosen(choice)
     const correct = choice === q.CORRECT
+    const direction = choice % 2 === 0 ? "left" : "right"
+    setRideState(`${direction}-${correct ? "safe" : "lava"}` as RideState)
     setLastCorrect(correct)
     if (correct) {
       setScore((s) => s + 1)
@@ -276,9 +282,11 @@ export function QuizGame() {
 
   const handleNext = () => {
     if (currentIdx + 1 >= questions.length) {
+      setRideState("parked")
       setPhase("finished")
       fetchRanking()
     } else {
+      setRideState("running")
       setCurrentIdx((i) => i + 1)
       setChosen(null)
       setPhase("question")
@@ -291,7 +299,7 @@ export function QuizGame() {
   if (phase === "start") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-md">
+        <Card className="adventure-card w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">楽天クイズ</CardTitle>
             <p className="text-muted-foreground text-sm mt-2">
@@ -365,7 +373,7 @@ export function QuizGame() {
     const allCorrect = score === total && total > 0
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-md text-center">
+        <Card className="adventure-card w-full max-w-md text-center">
           <CardHeader>
             <CardTitle
               className="text-2xl"
@@ -404,7 +412,7 @@ export function QuizGame() {
 
             <div className="flex gap-2 justify-center mt-4">
               <Button onClick={() => fetchQuestions(deck, mode)}>もう一度</Button>
-              <Button variant="outline" onClick={() => { setQuestions([]); setPhase("start") }}>
+              <Button variant="outline" onClick={() => { setRideState("parked"); setQuestions([]); setPhase("start") }}>
                 デッキ選択に戻る
               </Button>
             </div>
@@ -428,7 +436,7 @@ export function QuizGame() {
       </div>
 
       {/* Score Bar */}
-      <div className="flex items-center justify-between px-1">
+      <div className="adventure-scorebar flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="text-sm">
             {currentIdx + 1} / {questions.length}
@@ -446,7 +454,7 @@ export function QuizGame() {
       </div>
 
       {/* Question Card */}
-      <Card>
+      <Card className="adventure-card">
         <CardHeader>
           <CardTitle className="text-lg leading-relaxed">{q.QUESTION_TEXT}</CardTitle>
           {isBlank && phase === "question" && (
@@ -467,7 +475,7 @@ export function QuizGame() {
                 className="h-20 text-base whitespace-normal"
                 onClick={() => handleAnswer(0)}
               >
-                {q.ITEM_A}
+                <span aria-hidden="true">←</span> {q.ITEM_A}
               </Button>
               <Button
                 size="lg"
@@ -475,7 +483,7 @@ export function QuizGame() {
                 className="h-20 text-base whitespace-normal"
                 onClick={() => handleAnswer(1)}
               >
-                {q.ITEM_B}
+                {q.ITEM_B} <span aria-hidden="true">→</span>
               </Button>
             </div>
           )}
@@ -489,7 +497,11 @@ export function QuizGame() {
                   className="rounded-lg border p-3 text-center hover:ring-2 hover:ring-primary transition-all"
                   onClick={() => handleAnswer(i)}
                 >
-                  <div className="text-xs font-semibold mb-1">{String.fromCharCode(65 + i)}</div>
+                  <div className="text-xs font-semibold mb-1">
+                    {i % 2 === 0 ? "← " : ""}
+                    {String.fromCharCode(65 + i)}
+                    {i % 2 === 1 ? " →" : ""}
+                  </div>
                   <MiniLineChart points={c.series} width={100} height={40} strokeColor="var(--foreground)" />
                   <div className="text-xs text-muted-foreground mt-1 truncate">{c.label}</div>
                 </button>
