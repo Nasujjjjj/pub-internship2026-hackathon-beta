@@ -1,44 +1,42 @@
-# DATUM STUDIO Day5｜昼休み（12:00〜13:00）CoCo 自動作業の指示書　v2.2（11:59：4 レンズの検証を反映。時計・push・bypass 起動・NOAA 実 SQL・VARIANT の INSERT・モデル疎通・OAuth 温め・蓋。12:20：§3 を 13:00 の道具に合わせて更新。A〜C は 11:59 のまま）
+# DATUM STUDIO Day5｜CoCo 3 台の並行作業指示書　v2.3（12:55：各自が席で開始する前提に変更＝開始時に時刻を記録・13:40 以降は新規ステップなし・13:50 停止。クイズの追加＝docs/quiz-candidates.md の候補を再計算して投入、ID 3 の再計算、虫食い画面は docs/images/image.png の形、デッキ「顧客属性」と単位の規則）
 
-前提＝main に push 済みの実物（fd6ed97「Add CoCo API and docs」）に合わせる。集計 5 本・QZ_QUESTIONS（6 問）・QZ_ANSWERS・quiz-bot（Next.js、High & Low が動く）まで出来ている。**スキーマは CoCo が作った実物が正**（CORRECT は数値 0/1、DECK は英語 category/state/month/segment/weather、METRIC は sales/orders/customers/aov/female_share/sales_share/orders_per_customer）。
+前提＝main の実物（02cfd15 まで。quiz-bot・QZ_QUESTIONS 6 問・docs/quiz-candidates.md・docs/images/image.png）に合わせる。集計 5 本・QZ_QUESTIONS（6 問）・QZ_ANSWERS・quiz-bot（Next.js、High & Low が動く）まで出来ている。**スキーマは CoCo が作った実物が正**（CORRECT は数値 0/1、DECK は英語 category/state/month/segment/weather、METRIC は sales/orders/customers/aov/female_share/sales_share/orders_per_customer）。
 
-## 1. 貼り方（各 CoCo で）
+## 1. 貼り方（各自、自分の Codespace で。人は横にいてよいが CoCo には質問させない）
 
-1. `git pull` して main を最新にしてからブランチを切る：`git checkout -b lunch/screen`（データ＝`lunch/data`、AI＋天気＝`lunch/ai-weather`）
-2. 指示文を貼って送る
-3. **貼る前に**自動承認にする：`cortex --bypass --auto-accept-plans` で起動（フラグが無ければ起動後に shift+tab で bypass に切替）。画面下が bypass 表示（赤 `>>`）で plan（橙 `⏸`）が無いことを確認。貼ってから切り替えると最初のツール呼び出しが承認待ちで止まる
-4. 実装の最初の 1〜2 アクション（ファイル作成か SQL）が承認なしに流れるのを見てから席を立つ
+1. `git checkout main && git pull origin main` → `git log --oneline -1` が 02cfd15 以降 → ブランチを切る：`git checkout -b lunch/screen`（データ＝`lunch/data`、AI＋天気＝`lunch/ai-weather`）
+2. **貼る前に**自動承認にする：`cortex --bypass --auto-accept-plans` で起動（フラグが無ければ起動後に shift+tab で bypass に切替）。画面下が bypass 表示（赤 `>>`）で plan（橙 `⏸`）が無いことを確認。貼ってから切り替えると最初のツール呼び出しが承認待ちで止まる
+3. 指示文を貼って送る。最初の 1〜2 アクション（ファイル作成か SQL）が承認なしに流れるのを見る
+4. 止まっていたら「この指示の既定値で進めて」と打つ。質問に答えるより速い
 
-## 2. 11:55 のチェックリスト
+## 2. 開始前のチェック（貼る直前、5 分）
 
-- [ ] 3 台とも**別々の Codespace**（同じ箱で 2 本動かすと checkout／reset が互いのファイルを壊す）。各箱で `git checkout main && git pull origin main` → `git log --oneline -1` が fd6ed97 以降 → ブランチを切る
-- [ ] 各箱で空コミットの push が通る：`git commit --allow-empty -m "lunch: start" && git push -u origin $(git branch --show-current)`。通らない人の指示文からは push の行を消し、13:00 に `git format-patch main` で回収
-- [ ] 3 台とも bypass 表示、plan 無し。指示文の先頭 1〜2 アクションが流れた
-- [ ] 画面担当の箱で `npm run dev` を起動し `/api/quiz` を 1 回叩いて OAuth を通しておく（無人ではブラウザ認証ができない。2 回目以降はキャッシュ）
+- [ ] 3 台とも**別々の Codespace**（同じ箱で 2 本動かすと checkout／reset が互いのファイルを壊す）
+- [ ] 各箱で空コミットの push が通る：`git commit --allow-empty -m "lunch: start" && git push -u origin $(git branch --show-current)`。通らない人の指示文からは push の行を消し、13:50 に `git format-patch main` で回収
+- [ ] 画面担当の箱で `npm run dev` を起動し `/api/quiz` を 1 回叩いて OAuth を通しておく（初回はブラウザ認証で 25 秒。2 回目以降はキャッシュ）
 - [ ] AI モデルの疎通：Snowsight で `SELECT SNOWFLAKE.CORTEX.COMPLETE('<候補>', 'Reply with OK');` を 'claude-sonnet-4-5' → 'llama3.3-70b' → 'llama3.1-8b' → 'mistral-large2' の順に試し、最初に通った名前を指示文 C の `<MODEL>` に入れる
-- [ ] App Runtime の可否：画面担当が `SHOW PARAMETERS LIKE 'DEFAULT_SNOWFLAKE_APPS%' IN ACCOUNT;` を実行。値が空＝管理者セットアップ未了の可能性。その場合は 13:00 に人が Streamlit 版への切替を判断する（昼はローカルで完成させる）
-- [ ] Mac は電源につなぎ、**蓋を閉じない**（閉じると caffeinate があっても眠る）。ターミナルで `caffeinate -dis` を流したまま。Codespace のブラウザタブは 3 台とも開いたまま・接続中（ターミナル出力が活動に数えられるので、繋いだままなら止まらない。Settings の idle timeout は既存の箱に効かないので触らない）
-- [ ] 12:30 に 1 人が戻って 3 台の画面を見る。止まっていたら再読み込み → 箱を再開 → `cortex --resume last` → bypass → 「docs/progress_*.md と git log を読んで途中から続けて」
+- [ ] App Runtime の可否：画面担当が `SHOW PARAMETERS LIKE 'DEFAULT_SNOWFLAKE_APPS%' IN ACCOUNT;` を実行。値が空＝管理者セットアップ未了＝personal database に配備される（本人しか開けない）。その場合は**発表者（田中さん）の箱でデプロイ**する。Streamlit には切り替えない
 - [ ] CoCo 右上が Warehouse: TEAM_B_WH
+- [ ] 開始が 13:10 を過ぎたら、各指示文の末尾「優先順位」の下から削る
 
-## 3. 13:00 に戻ったら（10 分）※12:20 更新：詳細は同フォルダ DATUMSTUDIO_Day5_13時統合手順_20260909.md、検算は Snowflake_Day5_13時検算SQL_20260909.sql
+## 3. 13:50 に止めたら（統合 13:50〜14:20、凍結 14:30、発表 15:00）
 
-1. 各自の Codespace で CoCo を止め、`git log --oneline -3` と `git status` で最後の commit が push 済みか確認（origin に無い枝だけ `git push -u origin lunch/…`。通らなければ `git format-patch main`）
-2. 統合役：`git fetch origin --prune` → `git show origin/lunch/<枝>:docs/progress_<名>.md` で 3 本を読む（向き反転／除外の行数と金額／使ったモデル／デプロイ URL）
-3. 那須：Snowsight で検算 SQL の 1〜6（10 問以上・CHECK_DIR と CHECK_SHAPE と CHECK_CORRECT_CHOICE が全部 OK・除外前の全行が Day4 と一致・ID 1 は優良が低い・ID 3 はペットが 1 位）
-4. 統合役：`git checkout main && git pull origin main` → `git merge --no-ff origin/lunch/data` → `origin/lunch/ai-weather` → `origin/lunch/screen` の順に **1 本ずつ**（4 文書の同期 docs/sync-1200 は 12:35 に main へ取り込み済み）（3 本同時の octopus は 1 衝突で全中止）→ quiz-bot で `npm test` → `npm run dev` で mix を通す → 発表用の `ids` パラメータ（手順 §5、5 分）→ デプロイ
-5. デプロイ：SQL 10 のパラメータが空でも Streamlit へは切り替えない（personal DB は本人が開ける）。発表者（田中さん）のアカウントでデプロイし、2 回失敗したら localhost で発表
-6. 凍結 14:30 の前に：発表 3 問（ID 1・3・虫食い 1 問）の数字が Snowsight と画面で一致（那須）／QZ_ANSWERS の試遊ログを残すか決める（推し＝残す）
+1. 各自：CoCo を止め、`git log --oneline -3` と `git status` で最後の commit が push 済みか確認（origin に無い枝だけ `git push -u origin lunch/…`。通らなければ `git format-patch main`）
+2. 統合役：`git fetch origin --prune` → `git show origin/lunch/<枝>:docs/progress_<名>.md` で 3 本を読む（向き反転／ID 3 の新しい 1 位／除外の行数と金額／候補との数字のずれ／使ったモデル／デプロイ URL）→ `git checkout main && git pull origin main` → `git merge --no-ff origin/lunch/data` → `origin/lunch/ai-weather` → `origin/lunch/screen` の順に **1 本ずつ**（3 本同時の octopus は 1 衝突で全中止）→ quiz-bot で `npm test` → `npm run dev` で mix を通す
+3. 那須：Snowsight で docs/Snowflake_Day5_検算SQL_20260909.sql の 1〜6（10 問以上・CHECK_DIR と CHECK_SHAPE と CHECK_CORRECT_CHOICE が全部 OK・除外前の全行が Day4 と一致・ID 1 は優良が低い）と、追加した候補問題の値
+4. デプロイ（14:00〜、失敗 2 回で打ち切り）：発表者（田中さん）の箱で `snow app setup` → `snow app deploy`。personal DB でも本人は開けるので Streamlit へは切り替えない。駄目なら localhost（`npm run dev`）で発表
+5. 発表 3 問（案）：候補 #1「メンズファッションを買うのは 9 割女性」（つかみ）→ ID 1「優良顧客の単価は低い」（示唆）→ 虫食い 8（新モード）。ID 3 は除外後の 1 位を見てから決める
+6. 14:00〜14:30：演出（パンダ・レインボー）を CoCo に入らない人が足す。14:30 以降コードを触らない
 
 ## 4. 指示文 A（画面担当の CoCo に貼る）
 
 ```
-あなたは 12:00〜13:00 の 1 時間、人の確認なしで作業します。次のルールを守ってください。
+あなたは貼られた時刻から 13:50 まで、人の確認なしで作業します（人が横にいても質問はしない。止まったら人が「既定値で進めて」と打つ）。次のルールを守ってください。
 - 質問はせずに進める（AskUserQuestion や「進めてよいですか」の確認文は使わない）。判断に迷ったらこの指示の既定値を採用し、より単純な方を選び、docs/progress_screen.md に「仮決め」として記録する
 - 作業単位ごとに git commit し、直後に `git push -u origin lunch/screen`（main には push しない。force push しない）。push が失敗したら 1 回だけ再試行し、駄目なら理由を progress に書いて commit だけ続ける（fork 作成・remote 変更・トークン設定はしない）。壊れたら直前のコミットに戻す
 - 触ってよいのは quiz-bot/ 配下と docs/progress_screen.md だけ。Snowflake のテーブルは読むだけ（QZ_ANSWERS への INSERT は既存 API 経由のみ）。.cortex/ .devcontainer/ .snowflake/ は触らない
 - コミット前に quiz-bot で `npm test`（vitest）を通す。lint スクリプトは無いので実行しない
-- 時刻は必ず `TZ=Asia/Tokyo date +%H:%M` で確認する（箱の時計は UTC なので素の date は使わない）。各ステップの最初に実行し、12:50 を過ぎていたら新しいステップに入らない。13:00 になったら（または全部終わったら）止まり、docs/progress_screen.md に「できたこと／できなかったこと／仮決め／動かし方／デプロイ URL／既知の問題」を書いて commit・push する
+- 時刻は必ず `TZ=Asia/Tokyo date +%H:%M` で確認する（箱の時計は UTC なので素の date は使わない）。最初に 1 回実行して開始時刻を progress の先頭に書く。各ステップの最初にも実行し、13:40 を過ぎていたら新しいステップに入らない。13:50 になったら（または全部終わったら）止まり、docs/progress_screen.md に「できたこと／できなかったこと／仮決め／動かし方／デプロイ URL／既知の問題」を書いて commit・push する
 
 役割：quiz-bot（Next.js、Snowflake App Runtime）に虫食いモード・回答者名・ランキング・定義表示を足し、デプロイする。既存の High & Low（components/quiz-game.tsx、app/api/quiz/route.ts、app/api/answer/route.ts）はそのまま活かす。
 
@@ -50,7 +48,7 @@
 
 やること（順番どおり。各ステップで commit）
 1. API：app/api/quiz/route.ts に SERIES, MASK_FROM, MASK_TO, CHOICES を SELECT に足し、クエリパラメータ mode=highlow|blank|mix（既定 mix）で QTYPE を絞る。VARIANT 列は文字列で返るので JSON.parse してから返す。app/api/ranking/route.ts を新設：QZ_ANSWERS を QUESTION_ID で集計し、回答数 3 以上の問題を不正解率の高い順に 5 件（QUESTION_TEXT を JOIN）
-2. 画面（quiz-game.tsx）：DECKS に { value: 'weather', label: '天気' } を足す（0 問なら既存のエラー表示で可）。スタート画面に回答者名の入力（既定 guest。/api/answer の player に渡す）とモード選択（High & Low／虫食い／ミックス）を足す。虫食い問題は、SERIES の折れ線を SVG（components/chart-utils.tsx にあれば再利用、無ければ polyline で自作。ライブラリは追加しない）で描き、MASK 区間は線を描かず薄い帯で示す。下に CHOICES の 4 つを小さな折れ線カードで並べ、クリックで回答。答え合わせで元の系列全体と、各カードのラベル（正解のカテゴリと他 3 つのカテゴリ名）を表示。High & Low と同じく解説と SQL の折りたたみ
+2. 画面（quiz-game.tsx）：DECKS に { value: 'weather', label: '天気' } と { value: 'customer', label: '顧客属性' } を足し、'month' のラベルを '時期' にする（0 問なら既存のエラー表示で可）。formatNumber の単位の規則：METRIC の名前が _share か _rate で終わるものは %、aov と spend_per_customer は 円、orders は 件、orders_per_customer は 回、sales は 億／万円（既存）。それ以外は数値のまま（データ担当が候補問題で新しい METRIC を足すため）。スタート画面に回答者名の入力（既定 guest。/api/answer の player に渡す）とモード選択（High & Low／虫食い／ミックス）を足す。虫食い問題は、SERIES の折れ線を SVG（components/chart-utils.tsx にあれば再利用、無ければ polyline で自作。ライブラリは追加しない）で描き、MASK 区間は線を描かず薄い帯で示し、帯の中に赤枠の「？」を置く（docs/images/image.png＝田中さんの画面案。問題文の下に小さく「わからないだろう？」と煽ってよい）。下に CHOICES の 4 つを A〜D のラベル付きの小さな折れ線カードで並べ、クリックで回答（画像の A〜D と同じ並び。画像の上 2 本の参考線は今日はやらない）。答え合わせで元の系列全体と、各カードのラベル（正解のカテゴリと他 3 つのカテゴリ名）を表示。High & Low と同じく解説と SQL の折りたたみ
 3. 結果画面：「みんなが外した問題 TOP5」（/api/ranking）を表示。全問正解なら見出しを虹色のグラデーション（CSS のみ）にする
 4. 定義の折りたたみ：答え合わせの下に「定義」＝注文＝顧客 ID×購入日時／平均購入単価＝売上÷注文数／優良顧客＝Day3 の RFM 定義（化粧品購入者で R・F・M 高、2,865 人）／Apple Gift Card は集計から除外／期間 2023/4/1〜2024/3/31
 5. 差し込み口：components/mascot.tsx に、連勝数と正誤を props で受け取る空のコンポーネントを作り、画面左下に置く（中身は人が 14:00 以降に足す）
@@ -58,18 +56,19 @@
 6. デプロイ：/snowflake-apps のスキルに従う。snowflake.yml が無ければ `snow app setup` を実行してから `snow app deploy`。アプリ名は quiz_bot_beta、query_warehouse は TEAM_B_WH。この Application Service だけは TEAM_B_DB.DEVELOPMENT 以外に作ってよい（例外）。URL は `snow app open --print-only`（無ければ `snow app events` の出力）で取って progress に書く。権限・personal database（USER$）・コンピュートプールで 2 回失敗したら、それ以上は試さず「デプロイ未」と理由を書いてローカル（npm run dev）で完成させる。Snowflake への接続は既存の lib/snowflake.ts の querySnowflake() をそのまま使い、.env.local や認証情報は書かない
 
 完成条件：mix モードで High & Low と虫食い（ダミー可）が通しで回り、結果画面にランキングが出て、npm test が通る
+優先順位（時間が無ければ下から削る）：1 → 2 → 3 → 6（デプロイ）→ 4 → 5 → 5b
 ```
 
 ## 5. 指示文 B（データ担当の CoCo に貼る）
 
 ```
-あなたは 12:00〜13:00 の 1 時間、人の確認なしで作業します。次のルールを守ってください。
+あなたは貼られた時刻から 13:50 まで、人の確認なしで作業します（人が横にいても質問はしない。止まったら人が「既定値で進めて」と打つ）。次のルールを守ってください。
 - 質問はせずに進める（AskUserQuestion や「進めてよいですか」の確認文は使わない）。判断に迷ったらこの指示の既定値を採用し、より単純な方を選び、docs/progress_data.md に「仮決め」として記録する
 - SQL は sql/ に 1 作業 1 ファイルで保存し、作業単位ごとに git commit、直後に `git push -u origin lunch/data`（main には push しない）。push が失敗したら 1 回だけ再試行し、駄目なら理由を progress に書いて commit だけ続ける
 - 触ってよいのは TEAM_B_DB.DEVELOPMENT の QZ_ で始まるテーブルと sql/・docs/progress_data.md だけ。MART_RAKUTEN_PURCHASES_RFM は読み取り専用。quiz-bot/ は触らない
 - **QZ_QUESTIONS と QZ_ANSWERS は CREATE OR REPLACE／DROP／TRUNCATE しない**（AI・天気担当が同時に INSERT している）。自分の行の直しは UPDATE か DELETE ... WHERE ID IN (...) に限る
 - ウェアハウス TEAM_B_WH。sql_execute はステートメントごとにセッションが戻るので、テーブルは常に TEAM_B_DB.DEVELOPMENT. で完全修飾し、必要なら各文の先頭で USE WAREHOUSE TEAM_B_WH を付ける（作業ログ 2-4）
-- 時刻は必ず `TZ=Asia/Tokyo date +%H:%M` で確認する（箱の時計は UTC なので素の date は使わない）。各ステップの最初に実行し、12:50 を過ぎていたら新しいステップに入らない。13:00 になったら止まり、docs/progress_data.md に「できたこと／できなかったこと／仮決め／検算結果（除外前後の数字）／既知の問題」を書いて commit・push する
+- 時刻は必ず `TZ=Asia/Tokyo date +%H:%M` で確認する（箱の時計は UTC なので素の date は使わない）。最初に 1 回実行して開始時刻を progress の先頭に書く。各ステップの最初にも実行し、13:40 を過ぎていたら新しいステップに入らない。13:50 になったら止まり、docs/progress_data.md に「できたこと／できなかったこと／仮決め／検算結果（除外前後の数字）／既知の問題」を書いて commit・push する
 
 役割：①Apple Gift Card をクイズ用の集計から除外して 5 本の集計テーブルと固定問題の値を作り直す ②解説文を型に合わせて書き直す ③問題 2 を差し替える ④虫食い問題を 3 問入れる。スキーマは作業ログ_CoCo.md の実物（CORRECT は数値、DECK は英語）を変えない。
 
@@ -79,6 +78,7 @@
 - 除外はビューで一元化：`CREATE OR REPLACE VIEW TEAM_B_DB.DEVELOPMENT.QZ_BASE AS SELECT * FROM TEAM_B_DB.DEVELOPMENT.MART_RAKUTEN_PURCHASES_RFM WHERE NOT (<①で決めた条件>)`。集計 5 本・固定問題・虫食いの SQL は全部 QZ_BASE から取る。大福帳を直接読むのは除外前の検算だけ
 - QZ_AGG_CAT・QZ_AGG_STATE・QZ_AGG_MONTH_CAT・QZ_AGG_WEEK_CAT・QZ_AGG_SEG_CAT を同じ定義（注文＝顧客×購入日時、AOV＝売上÷注文数、カテゴリ異物は「カテゴリ不明」、STATE '不明' 除外）で CREATE OR REPLACE（除外条件を WHERE に追加）
 - 固定問題 ID 1・3・101・102・103 の VALUE_A・VALUE_B・CORRECT・SQL_TEXT を除外後の値で UPDATE。除外前と 10% 以上ずれた問題は progress に書く
+- **ID 3 は要注意**：Apple Gift Card はペット・ペットグッズに分類されていて、ペット売上の 78% を占める（docs/quiz-candidates.md のデータ品質メモ）。除外後は「化粧品以外の 1 位」がペットでなくなる可能性が高い（Day4 の実測では次点がキッズ・ベビー 10.7%、花・ガーデン 8.0%、食品 7.4%）。優良顧客の化粧品以外の売上構成比を QZ_BASE で再計算して 1 位と 2 位を出し、問題文を「化粧品以外で優良顧客が一番買うのは {1 位}？ {2 位}？」、ITEM_A={1 位}、ITEM_B={2 位}、VALUE_A/B=構成比（%）、METRIC 'sales_share' に UPDATE する。1 位がペットのままなら文はそのまま。結果を progress の先頭に「ID 3 の 1 位＝…」と書く
 - CORRECT は必ず VALUE_A と VALUE_B の比較で決める（作業ログの期待の向きに合わせない）。向きが変わった問題は progress の先頭に「向き反転」と書く
 
 ② 解説の型（EXPLANATION を UPDATE。数字は①で出した実値を入れる）
@@ -100,25 +100,37 @@
 - 形式：SERIES＝[{"x":"2023-04-03","y":123.0},...]（全区間の実値）、MASK_FROM/MASK_TO＝添字（両端含む）、CHOICES＝4 個の {"label": カテゴリ名, "series": 隠した区間だけを min-max で 0〜1 に正規化した配列} をシャッフル、CORRECT＝正解の添字（0〜3）。VARIANT 列は **INSERT ... SELECT** で入れる（INSERT ... VALUES の中に PARSE_JSON／ARRAY_CONSTRUCT は書けない）。例：`INSERT INTO TEAM_B_DB.DEVELOPMENT.QZ_QUESTIONS (DECK, QTYPE, QUESTION_TEXT, SERIES, MASK_FROM, MASK_TO, CHOICES, CORRECT, EXPLANATION, SQL_TEXT) SELECT 'category', 'blank', '…', PARSE_JSON($1), 31, 38, PARSE_JSON($2), 2, '…', '…' FROM VALUES ('[{"x":"2023-04-03","y":123.0}, …]', '[{"label":"ペット・ペットグッズ","series":[0.1,0.4,…]}, …]');`。集計から直接組む場合は `ARRAY_AGG(OBJECT_CONSTRUCT('x', WEEK_START, 'y', SALES)) WITHIN GROUP (ORDER BY WEEK_START)`（これも INSERT ... SELECT）
 - 解説：「隠れていたのは {カテゴリ} の {期間}。山の理由＝{スーパーSALE／年末／季節}。他の 3 つは {カテゴリ名}」の 2 行
 
+⑥ 候補からの追加（docs/quiz-candidates.md、駒場さん作成。High & Low、QTYPE 'highlow'）
+- 候補の数字はそのまま使わない。候補の注文数（男 227K＋女 487K＝714K）は Day4 の全行 1,125,268 と合わず、定義か絞り込みが違う。**QZ_BASE と同じ定義（注文＝顧客×購入日時、Apple Gift Card 除外、カテゴリ異物は「カテゴリ不明」で行は残す）で再計算**し、CORRECT は比較で決める。候補の値と 10% 以上ずれたら progress に両方の数字を書く（向きが変わったら「向き反転」）
+- 入れる順（時間が無ければ下から削る）。DECK と METRIC はこのとおり：
+  1. 候補 #1：「メンズファッションを買っているのは、男性と女性どっちが多い？」DECK 'category'、METRIC 'customer_share'（メンズファッション購入者に占める割合 %）、ITEM_A '男性'、ITEM_B '女性'
+  2. 候補 #15：「注文数が多いのは 6 月？ 12 月？」DECK 'month'、METRIC 'orders'。④-10 と同じ月次の COUNT(DISTINCT USER_ID_HASH, PURCHASED_AT) を使う（既存 ID 102 は「売上」で 12 月が上。注文数と売上で向きが違うなら解説にそれを書く＝12 月は単価が高い）
+  3. 候補 #10：「1 注文あたりの平均額が高いのは東京都？ 石川県？」DECK 'state'、METRIC 'aov'。QZ_AGG_STATE から
+  4. 候補 #7：「1 注文あたりの金額が高い年代は 20 代？ 70 代？」DECK 'customer'、METRIC 'aov'。年齢の列は大福帳の実物を DESCRIBE で確認し、年代は 10 歳刻み。100 歳以上は除く
+  5. 候補 #13：「注文数が多いのは日曜？ 金曜？」DECK 'month'、METRIC 'orders'。DAYOFWEEKISO（1=月〜7=日）
+  6. 余裕があれば候補 #12（沖縄 vs 北海道の aov、'state'）、#9（60 代 vs 20 代のコスメ単価、'customer'）
+- #18 は既存 ID 1 と同じなので入れない。解説は②の型、SQL_TEXT は再計算に使った実 SQL、AI_GENERATED=FALSE
+
 ⑤ 検算：`select id, deck, qtype, question_text, correct, value_a, value_b from TEAM_B_DB.DEVELOPMENT.QZ_QUESTIONS order by id` を progress に貼る
 
-順番：①（25 分）→ ②③（15 分）→ ④（20 分）→ ⑤
+順番：①（20 分。ID 3 の再計算を含む）→ ④ の 8（10 分）→ ⑥ の 1〜3（10 分）→ ②（ID 1・3・⑥ の分、5 分）→ ④ の 9・10 → ③ → ⑥ の 4〜6 → ⑤
+優先順位（時間が無ければ下から削る）：① → ④-8 → ⑥-1〜3 → ② → ④-9・10 → ③ → ⑥-4〜6。13:40 を過ぎたら残りは捨てて ⑤ と progress
 ```
 
 ## 6. 指示文 C（AI 出題＋天気担当の CoCo に貼る）
 
 ```
-あなたは 12:00〜13:00 の 1 時間、人の確認なしで作業します。次のルールを守ってください。
+あなたは貼られた時刻から 13:50 まで、人の確認なしで作業します（人が横にいても質問はしない。止まったら人が「既定値で進めて」と打つ）。次のルールを守ってください。
 - 質問はせずに進める（AskUserQuestion や「進めてよいですか」の確認文は使わない）。判断に迷ったらこの指示の既定値を採用し、より単純な方を選び、docs/progress_ai_weather.md に「仮決め」として記録する
 - SQL は sql/ に保存し、作業単位ごとに git commit、直後に `git push -u origin lunch/ai-weather`（main には push しない）。push が失敗したら 1 回だけ再試行し、駄目なら理由を progress に書いて commit だけ続ける
 - 触ってよいのは TEAM_B_DB.DEVELOPMENT の QZ_ で始まるオブジェクト（QZ_QUESTIONS は INSERT のみ、既存行は UPDATE/DELETE しない）と sql/・docs/progress_ai_weather.md だけ。大福帳は読み取り専用。quiz-bot/ は触らない
 - ウェアハウス TEAM_B_WH。テーブルは常に完全修飾し、各文の先頭で USE WAREHOUSE TEAM_B_WH（作業ログ 2-4）
-- 時刻は必ず `TZ=Asia/Tokyo date +%H:%M` で確認する（箱の時計は UTC なので素の date は使わない）。各ステップの最初に実行し、12:50 を過ぎていたら新しいステップに入らない。13:00 になったら止まり、docs/progress_ai_weather.md に「できたこと／できなかったこと／仮決め／検算結果／既知の問題」を書いて commit・push する
+- 時刻は必ず `TZ=Asia/Tokyo date +%H:%M` で確認する（箱の時計は UTC なので素の date は使わない）。最初に 1 回実行して開始時刻を progress の先頭に書く。各ステップの最初にも実行し、13:40 を過ぎていたら新しいステップに入らない。13:50 になったら止まり、docs/progress_ai_weather.md に「できたこと／できなかったこと／仮決め／検算結果／既知の問題」を書いて commit・push する
 
 役割：①Cortex の AI 関数で High & Low の問題を自動生成するストアドプロシージャ ②天気（NOAA）×東京都の顧客の結合テーブルと、天気の問題 1 問。スキーマは作業ログ_CoCo.md の実物：DECK は 'category'|'state'|'month'|'segment'|'weather'、CORRECT は 0（A が正解）か 1（B が正解）、METRIC は 'sales'|'orders'|'customers'|'aov'|'female_share'。
 
 ① AI 出題（/cortex-ai-function-studio を使う）
-- モデル：<MODEL>（11:55 の疎通で通ったもの）。最初に `SELECT SNOWFLAKE.CORTEX.COMPLETE('<MODEL>', 'Reply with OK');` を 1 回実行し、エラーなら 'claude-sonnet-4-5' → 'llama3.3-70b' → 'llama3.1-8b' → 'mistral-large2' の順に同じ疎通を試して、通った名前を以後すべてに使い progress の先頭に書く。プロシージャ内は SNOWFLAKE.CORTEX.TRY_COMPLETE を使い、NULL なら次のモデルへ（COMPLETE はエラーで落ちる）。エラー文に legacy／not available が出たら即次へ
+- モデル：<MODEL>（§2 の疎通で通ったもの）。最初に `SELECT SNOWFLAKE.CORTEX.COMPLETE('<MODEL>', 'Reply with OK');` を 1 回実行し、エラーなら 'claude-sonnet-4-5' → 'llama3.3-70b' → 'llama3.1-8b' → 'mistral-large2' の順に同じ疎通を試して、通った名前を以後すべてに使い progress の先頭に書く。プロシージャ内は SNOWFLAKE.CORTEX.TRY_COMPLETE を使い、NULL なら次のモデルへ（COMPLETE はエラーで落ちる）。エラー文に legacy／not available が出たら即次へ
 - プロシージャ TEAM_B_DB.DEVELOPMENT.QZ_GENERATE_HIGHLOW(DECK STRING, N NUMBER) RETURNS STRING（Python か SQL、動く方）
   1. DECK='category' なら QZ_AGG_CAT（'カテゴリ不明' を除く売上上位 40 行）、'state' なら QZ_AGG_STATE（全行）を JSON 文字列にする
   2. SNOWFLAKE.CORTEX.COMPLETE(<MODEL>, prompt) を呼ぶ。prompt＝「次は楽天市場の 2023 年度の集計表です。直感と逆になりそうな（多くの人が外しそうな）『A の指標は B より高い？低い？』の組を N 個選び、JSON 配列だけを返してください。各要素は {"item_a":..., "item_b":..., "metric":"sales|orders|customers|aov|female_share", "question_text":"日本語の問題文 1 文", "why":"意外な理由 1 文"}。表に無い名前は使わない。」＋表の JSON
@@ -136,5 +148,6 @@
 5. 検算：IS_WEEKDAY=TRUE かつ CATEGORY_LEVEL_1='すべて' の行で、IS_RAINY 別に ORDERS の MEDIAN を出し、progress に数字を書く
 6. 問題 1 問を INSERT：DECK 'weather'、QTYPE 'highlow'、METRIC 'orders'、QUESTION_TEXT「東京都の顧客の 1 日あたり注文数（平日の中央値）が多いのは？」、ITEM_A '雨の日'、ITEM_B '雨でない日'、VALUE_A/B＝中央値、CORRECT＝比較（0 か 1）、SQL_TEXT に実 SQL、EXPLANATION は「1 行目＝正解と数字、2 行目＝雨＝降水 1mm 以上・平日のみ・中央値、絶対額はセールと週末に飲まれるので条件を揃えた」。差が 3% 未満なら代わりに「雨の日に売上構成比が一番上がるカテゴリ」（雨／非雨の SHARE の差が最大のカテゴリ vs 2 位、METRIC 'sales_share'）にする
 
-順番：①（30 分）→ ②（30 分）。① が 12:30 を過ぎても動かなければ ② に移る。
+順番：①（25 分）→ ②（25 分）。① が開始から 25 分を過ぎても動かなければ ② に移る。
+優先順位（時間が無ければ下から削る）：① のプロシージャと CALL 1 回 → ② の天気 1 問 → ① のテスト 2 回目
 ```
