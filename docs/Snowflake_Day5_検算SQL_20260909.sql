@@ -202,3 +202,42 @@ ORDER BY WRONG_PCT DESC, N DESC LIMIT 5;
 -- =====================================================================
 SHOW PARAMETERS LIKE 'DEFAULT_SNOWFLAKE_APPS%' IN ACCOUNT;
 SHOW APPLICATION SERVICES;                                          -- 既に配備されていれば名前と DB が出る
+
+-- =====================================================================
+-- 11) B と C の定義ずれの確認（13:20 追加。C の sql/02 は ORDERS=COUNT(*)（明細数）、QZ_BASE は .tsv.gz 行も落とす定義）
+--     なぜ：同じ名前のテーブルを 2 台の CoCo が作り直していて、最後に走った方が残る。画面の定義（注文＝顧客×購入日時）と合っているかを数字で見る
+-- =====================================================================
+-- 11a) 今の QZ_BASE の定義（.tsv.gz の行を落としているか。チーム決定＝Apple Gift Card だけ除外、カテゴリ異物は「カテゴリ不明」で行は残す）
+SELECT GET_DDL('VIEW', 'TEAM_B_DB.DEVELOPMENT.QZ_BASE');
+
+-- 11b) QZ_AGG_STATE の ORDERS が注文数か明細数か（東京都で比較。ORDERS_IN_TABLE ≒ ORDERS_DISTINCT なら注文数、ROWS_ に近ければ明細数）
+SELECT s.ORDERS AS ORDERS_IN_TABLE, s.AOV AS AOV_IN_TABLE,
+       b.ORDERS_DISTINCT, b.ROWS_, ROUND(b.SALES / b.ORDERS_DISTINCT) AS AOV_DISTINCT
+FROM TEAM_B_DB.DEVELOPMENT.QZ_AGG_STATE s
+JOIN (SELECT COUNT(DISTINCT USER_ID_HASH, PURCHASED_AT) AS ORDERS_DISTINCT, COUNT(*) AS ROWS_, SUM(TOTAL_PRICE) AS SALES
+      FROM TEAM_B_DB.DEVELOPMENT.QZ_BASE WHERE STATE_NAME = '東京都') b
+WHERE s.STATE_NAME = '東京都';
+
+-- 11c) 固定問題 ID 101（東京都 vs 大阪府の注文数）の VALUE が今のテーブルと一致するか
+SELECT q.ID, q.ITEM_A, q.VALUE_A, a.ORDERS AS TABLE_A, q.ITEM_B, q.VALUE_B, b.ORDERS AS TABLE_B
+FROM TEAM_B_DB.DEVELOPMENT.QZ_QUESTIONS q
+LEFT JOIN TEAM_B_DB.DEVELOPMENT.QZ_AGG_STATE a ON a.STATE_NAME = q.ITEM_A
+LEFT JOIN TEAM_B_DB.DEVELOPMENT.QZ_AGG_STATE b ON b.STATE_NAME = q.ITEM_B
+WHERE q.ID = 101;
+
+-- 11d) AI 生成問題（category）の VALUE が今の QZ_AGG_CAT と一致するか（B が後からテーブルを作り直すと古い値が残る）
+SELECT q.ID, q.ITEM_A, q.ITEM_B, q.METRIC, q.VALUE_A, q.VALUE_B,
+       CASE q.METRIC WHEN 'sales' THEN a.SALES WHEN 'orders' THEN a.ORDERS WHEN 'customers' THEN a.CUSTOMERS WHEN 'aov' THEN a.AOV WHEN 'female_share' THEN a.FEMALE_SHARE END AS TABLE_A,
+       CASE q.METRIC WHEN 'sales' THEN b.SALES WHEN 'orders' THEN b.ORDERS WHEN 'customers' THEN b.CUSTOMERS WHEN 'aov' THEN b.AOV WHEN 'female_share' THEN b.FEMALE_SHARE END AS TABLE_B
+FROM TEAM_B_DB.DEVELOPMENT.QZ_QUESTIONS q
+LEFT JOIN TEAM_B_DB.DEVELOPMENT.QZ_AGG_CAT a ON a.CATEGORY_LEVEL_1 = q.ITEM_A
+LEFT JOIN TEAM_B_DB.DEVELOPMENT.QZ_AGG_CAT b ON b.CATEGORY_LEVEL_1 = q.ITEM_B
+WHERE q.AI_GENERATED AND q.DECK = 'category'
+ORDER BY q.ID;
+
+-- 11e) QZ_AGG_CAT にカテゴリ異物（ページ名・ファイル名）が残っていないか（AI が拾うと問題文に混ざる）
+SELECT CATEGORY_LEVEL_1, SALES FROM TEAM_B_DB.DEVELOPMENT.QZ_AGG_CAT ORDER BY SALES DESC;
+
+-- 11f) ずれていた時の直し方（B のテーブルが確定した後に 1 回だけ）：AI 生成を消して作り直す（重複も消える）
+-- DELETE FROM TEAM_B_DB.DEVELOPMENT.QZ_QUESTIONS WHERE AI_GENERATED;
+-- CALL TEAM_B_DB.DEVELOPMENT.QZ_GENERATE_HIGHLOW('category', 5);
