@@ -3,58 +3,51 @@
 開始時刻: 12:43 (JST)
 
 ## できたこと
-1. **API 更新** (Step 1)
-   - `/api/quiz` に SERIES, MASK_FROM, MASK_TO, CHOICES を SELECT に追加
-   - `mode=highlow|blank|mix` クエリパラメータ対応（既定 mix）
-   - VARIANT 列は JSON.parse してから返す
-   - `/api/ranking` を新設：不正解率の高い問題 TOP5
-
-2. **画面更新** (Step 2)
-   - DECKS に `weather`（天気）、`customer`（顧客属性）を追加
-   - `month` のラベルを「時期」に変更
-   - formatNumber の単位規則：`_share`/`_rate` → %、`aov`/`spend_per_customer` → 円、`orders` → 件、`orders_per_customer` → 回、`sales` → 億/万円、それ以外は数値のまま
-   - スタート画面に回答者名入力（既定 guest）とモード選択（High & Low / 虫食い / ミックス）
-   - 虫食い問題：SVG polyline で折れ線、MASK 区間は薄い帯 + 赤枠「？」
-   - CHOICES は A〜D のミニ折れ線カードで表示
-   - 答え合わせで元の系列全体表示 + 各カードのラベル（正解にはバッジ）
-   - 解説と SQL の折りたたみは High & Low / 虫食い 共通
-
-3. **結果画面** (Step 3)
-   - 「みんなが外した問題 TOP5」（/api/ranking）を表示
-   - 全問正解なら見出しを虹色グラデーション（CSS のみ）
-
-4. **定義の折りたたみ** (Step 4)
-   - 答え合わせの下に「定義」トグル：注文＝顧客ID×購入日時、平均購入単価＝売上÷注文数、優良顧客＝Day3 RFM 定義（2,865人）、Apple Gift Card 除外、期間 2023/4/1〜2024/3/31
-
-5. **mascot.tsx** (Step 5)
-   - 連勝数と正誤を props で受け取る空コンポーネント（画面左下 fixed）
-
-6. **デプロイ** (Step 6)
-   - `snow app setup` → `snow app deploy` 成功
-   - personal database USER$KOYO_NASU.PUBLIC に配備
-
-7. **ダミー虫食い問題** (lib/dummy-blank.ts)
-   - API が blank を 0 件返したときにダミー 2 問を使用
+1. **API** `/api/quiz` — ids（指定順で返す）、n（LIMIT、既定10）パラメータ追加。SERIES/MASK_FROM/MASK_TO/CHOICES/mode は前回実装済み
+2. **API** `/api/ranking` — 不正解率 TOP5
+3. **スプラッシュ画面** — 紺背景＋青ブロブ（radial-gradient）、「β-LEAGUE」大文字、「データでひらく、新しい視点。」「DATA × QUIZ × ANALYSIS」、START → ボタン。autostart/ids がある時はスキップ
+4. **スタート画面** — 回答者名入力、モード選択（High & Low / 虫食い / ミックス）、問題数（5/10/20）、デッキは色付きグラデーションカードに絵文字アイコン付き。URL パラメータ（player, mode, deck, ids, n, autostart）対応
+5. **ゲーム画面** — Q k/n＋進捗ドット（正解緑・不正解赤）、SCORE pt、EXIT ボタン、A/B バッジ付きボタン、虫食い A-D カード、ミュート切替 🔊/🔇
+6. **GIF 背景** — background-gif.tsx：wait/move_l/move_r/answer_true/answer_false の 5 状態、state+問題番号の key で頭から再生。カード半透明＋backdrop-blur。ファイルが無い時は非表示（onError）
+7. **トロッコ遷移** — 選択→move_l/r（MOVE_MS=1500ms）→判定→answer_true/false→次の問題でwaitに戻る。moving phase は「判定中...」
+8. **結果画面** result-screen.tsx — SCORE pt＋🌿、デッキ別正答率バー、みんなが外した問題TOP5、「もう一度挑戦する」「トップに戻る」。全問正解で虹色見出し
+9. **虫食いチャート修正** — 線は maskFrom-1 と maskTo+1 だけ、帯は線が切れている幅と一致。答え合わせではマスク図を出さず全体図のみ
+10. **BGM + 効果音** — docs/SFX/ と docs/効果音,BGM/ の mp3 を public/sound/ にコピー。START で BGM ループ再生、正解/不正解/連勝で効果音。ファイル無ければ Web Audio API で合成
+11. **定義の折りたたみ** — 答え合わせ下にトグル
+12. **mascot.tsx** — 空コンポーネント（左下 fixed）
+13. **ヘッダー** — 「β-LEAGUE」＋副題「楽天クイズ ― 知ってるつもり？」
 
 ## できなかったこと
-- Step 5b（AI 出題 API `/api/generate`）は未実装（優先順位外）
+- Step 5b（AI 出題 API `/api/generate`）は未実装
 
-## 仮決め
-- blank 問題がDB に 0 件の場合はダミー 2 問を自動挿入（指示書通り）
-- 虫食いチャートは SVG polyline で自作（ライブラリ追加なし）
+## 差し替え用ファイルの置き場と名前
+```
+quiz-bot/public/gif/
+  trocco_wait.gif        — 問題表示中（待機）
+  trocco_move_l.gif      — 左の選択肢を選んだ時
+  trocco_move_r.gif      — 右の選択肢を選んだ時
+  trocco_answer_true.gif — 正解
+  trocco_answer_false_.gif — 不正解（末尾アンダースコア付き優先）
+  trocco_answer_false.gif  — 不正解（フォールバック）
+
+quiz-bot/public/sound/
+  bgm.mp3        — BGM（ループ再生）← docs/効果音,BGM/ からコピー済み
+  se_correct.mp3 — 正解 SE ← docs/SFX/正解.mp3 からコピー済み
+  se_wrong.mp3   — 不正解 SE ← docs/SFX/不正解.mp3 からコピー済み
+  se_streak.mp3  — 連勝 SE ← docs/SFX/デレンッ.mp3 からコピー済み
+```
 
 ## 動かし方
 ```bash
-cd quiz-bot
-npm ci
-npm run dev
-# http://localhost:3000 でアクセス
+cd quiz-bot && npm ci && npm run dev
+# http://localhost:3000
+# URL パラメータ例: ?ids=501,1,8&autostart=1&player=田中
 ```
 
 ## デプロイ URL
 https://jdc4mukm-on44798-ds-5daysinternship-2026.snowflakecomputing.app
 
 ## 既知の問題
-- デプロイ先は personal database (USER$KOYO_NASU) のため本人のみアクセス可。発表者（田中さん）の箱での再デプロイが必要
-- 虫食いの上 2 本の参考線は未実装（指示書で「今日はやらない」）
-- mascot.tsx は空実装（14:00 以降に手動で中身を足す想定）
+- デプロイ先は personal database (USER$KOYO_NASU)。発表者（田中さん）の箱での再デプロイ推奨
+- mascot.tsx は空実装（14:00 以降に手動追加）
+- GIF ファイルは未配置（public/gif/ に置けば自動表示される）
