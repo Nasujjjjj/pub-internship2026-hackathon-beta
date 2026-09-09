@@ -286,7 +286,7 @@ export function QuizGame() {
     setScore(0)
     setStreak(0)
     setTotal(0)
-    setPhase("mode")
+    setPhase("start")
     setAnswers([])
     setRideState("parked")
     stopAllBgm()
@@ -367,7 +367,7 @@ export function QuizGame() {
 
   // --- Splash ---
   if (phase === "splash") {
-    return <SplashScreen onStart={() => { startBgmMenu(); setPhase("mode") }} />
+    return <SplashScreen onStart={() => { startBgmMenu(); setPhase("start") }} />
   }
 
   // --- Mode selection ---
@@ -481,7 +481,7 @@ export function QuizGame() {
 
   // --- Finished ---
   if (phase === "finished") {
-    return <ResultScreen score={score} total={total} answers={answers} rainbow={rainbow} dobonAt={dobonAt} onRetry={() => { preloadAll(); fetchQuestions(deck, mode, idsParam || undefined, nQuestions) }} onTop={() => { setQuestions([]); setPhase("mode"); setRideState("parked") }} />
+    return <ResultScreen score={score} total={total} answers={answers} rainbow={rainbow} dobonAt={dobonAt} onRetry={() => { preloadAll(); fetchQuestions(deck, mode, idsParam || undefined, nQuestions) }} onTop={() => { setQuestions([]); setPhase("start"); setRideState("parked") }} />
   }
 
   if (!q) return null
