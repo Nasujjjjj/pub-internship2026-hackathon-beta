@@ -9,7 +9,7 @@ import { BackgroundGif, type GifState } from "@/components/background-gif"
 import { ResultScreen } from "@/components/result-screen"
 import { useAdventureRide, type RideState } from "@/components/adventure-stage"
 import { dummyBlankQuestions } from "@/lib/dummy-blank"
-import { playCorrect, playWrong, startBgmGame, startBgmMenu, stopAllBgm, setMuted, preloadAll } from "@/lib/sound-manager"
+import { playCorrect, playWrong, playDecide, startBgmGame, startBgmMenu, stopAllBgm, setMuted, preloadAll } from "@/lib/sound-manager"
 import { ParrotRain } from "@/components/parrot-rain"
 import { ImageScreen } from "@/components/image-screen"
 
@@ -179,10 +179,14 @@ export function QuizGame() {
   const moveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initRef = useRef(false)
 
+  function normalizeForRainbow(name: string): string {
+    return name.trim().toLowerCase().replace(/[\s\-\u3000_]/g, "")
+  }
+
   function checkRainbow(name: string) {
-    const low = name.trim().toLowerCase()
-    if (low === "party_parrot") { setRainbow(true); setRainbowType("parrot"); return true }
-    if (low === "rainbow_tanaka") { setRainbow(true); setRainbowType("tanaka"); return true }
+    const norm = normalizeForRainbow(name)
+    if (norm === "partyparrot") { setRainbow(true); setRainbowType("parrot"); return true }
+    if (norm === "rainbowtanaka") { setRainbow(true); setRainbowType("tanaka"); return true }
     setRainbow(false); setRainbowType(null); return false
   }
 
@@ -268,6 +272,7 @@ export function QuizGame() {
     // Ride direction
     const direction = q.QTYPE === "blank" ? (choice % 2 === 0 ? "left" : "right") : (choice === 0 ? "left" : "right")
     setRideState(`${direction}-${correct ? "safe" : "lava"}` as RideState)
+    playDecide()
 
     // POST answer immediately
     fetch("/api/answer", {
@@ -380,7 +385,11 @@ export function QuizGame() {
   // --- Deck Screen (start) ---
   if (phase === "start") {
     return (
-      <div className="relative min-h-[60vh]">
+      <div className={`relative min-h-[60vh] ${rainbow ? "rainbow-mode" : ""}`}>
+        {rainbow && <div className="rainbow-bg-overlay" />}
+        {rainbow && rainbowType === "parrot" && <ParrotRain count={40} />}
+        {rainbow && rainbowType === "tanaka" && <ParrotRain count={10} />}
+        {rainbow && rainbowType === "tanaka" && <div className="rainbow-tanaka-badge">👑 RAINBOW TANAKA</div>}
         {/* Background image with overlay */}
         <div className="fixed inset-0 -z-10">
           <img src="/bg/category.jpg" alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
@@ -397,7 +406,10 @@ export function QuizGame() {
 
             <div>
               <label className="text-sm font-medium block mb-1">回答者名</label>
-              <input type="text" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="guest" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+              <div className="flex gap-2">
+                <input type="text" className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="guest" value={playerName} onChange={(e) => setPlayerName(e.target.value)} onBlur={() => checkRainbow(playerName)} />
+                <Button size="sm" variant="outline" onClick={() => checkRainbow(playerName)}>確定</Button>
+              </div>
             </div>
 
             <div className="flex gap-4">
@@ -513,10 +525,10 @@ export function QuizGame() {
           {/* Question: High & Low buttons */}
           {phase === "question" && !isBlank && (
             <div className="grid grid-cols-2 gap-3">
-              <Button size="lg" className="h-20 text-base whitespace-normal" onClick={() => handleAnswer(0)}>
+              <Button size="lg" className="h-28 text-xl whitespace-normal" onClick={() => handleAnswer(0)}>
                 <Badge className="mr-2">A</Badge>← {q.ITEM_A}
               </Button>
-              <Button size="lg" variant="outline" className="h-20 text-base whitespace-normal" onClick={() => handleAnswer(1)}>
+              <Button size="lg" variant="outline" className="h-28 text-xl whitespace-normal" onClick={() => handleAnswer(1)}>
                 <Badge variant="outline" className="mr-2">B</Badge>{q.ITEM_B} →
               </Button>
             </div>
@@ -526,10 +538,10 @@ export function QuizGame() {
           {phase === "question" && isBlank && q.CHOICES && (
             <div className="grid grid-cols-2 gap-3">
               {q.CHOICES.map((c, i) => (
-                <button key={i} className="rounded-lg border p-3 text-center hover:ring-2 hover:ring-primary transition-all" onClick={() => handleAnswer(i)}>
-                  <div className="text-xs font-semibold mb-1">{i % 2 === 0 ? "← " : ""}{String.fromCharCode(65 + i)}{i % 2 === 1 ? " →" : ""}</div>
-                  <MiniLineChart points={c.series} width={100} height={40} strokeColor="var(--foreground)" />
-                  <div className="text-xs text-muted-foreground mt-1 truncate">{c.label}</div>
+                <button key={i} className="rounded-lg border p-4 text-center hover:ring-2 hover:ring-primary transition-all" onClick={() => handleAnswer(i)}>
+                  <div className="text-sm font-semibold mb-1">{i % 2 === 0 ? "← " : ""}{String.fromCharCode(65 + i)}{i % 2 === 1 ? " →" : ""}</div>
+                  <MiniLineChart points={c.series} width={120} height={50} strokeColor="var(--foreground)" />
+                  <div className="text-sm text-muted-foreground mt-1 truncate">{c.label}</div>
                 </button>
               ))}
             </div>

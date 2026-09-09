@@ -22,6 +22,19 @@ export function useAdventureRide() {
   return context
 }
 
+function TanakaRider() {
+  const [show, setShow] = useState(true)
+  if (!show) return null
+  return (
+    <img
+      src="/adventure/tanaka.png"
+      alt=""
+      onError={() => setShow(false)}
+      style={{ position: "absolute", bottom: "85%", left: "50%", transform: "translateX(-50%)", width: "120px", animation: "parrot-bounce 0.8s ease-in-out infinite alternate" }}
+    />
+  )
+}
+
 export function AdventureStage({ children }: { children: React.ReactNode }) {
   const [rideState, setRideState] = useState<RideState>("parked")
   const isLava = rideState.endsWith("lava")
@@ -43,6 +56,7 @@ export function AdventureStage({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="adventure-cart" aria-hidden="true">
+          <TanakaRider />
           <Image
             src="/adventure/mine-cart.png"
             alt=""
@@ -53,7 +67,7 @@ export function AdventureStage({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="adventure-lava-splash" aria-hidden="true">
-          <span>{isLava ? "マグマへダイブ！" : ""}</span>
+          <span>{isLava ? "DIVE INTO MAGMA!" : ""}</span>
         </div>
 
         <div className="adventure-content">{children}</div>

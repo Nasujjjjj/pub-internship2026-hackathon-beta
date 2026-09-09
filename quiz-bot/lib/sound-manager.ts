@@ -30,7 +30,7 @@ const preloaded = new Map<string, HTMLAudioElement>()
 const activeSE: HTMLAudioElement[] = []
 
 export function preloadAll() {
-  for (const src of ["/sound/se_correct.mp3", "/sound/se_wrong.mp3"]) {
+  for (const src of ["/sound/se_correct.mp3", "/sound/se_wrong.mp3", "/sound/se_decide.mp3"]) {
     if (!preloaded.has(src)) {
       const a = new Audio(src)
       a.preload = "auto"
@@ -75,12 +75,17 @@ function playSE(src: string, volume = 0.4): Promise<boolean> {
 
 export async function playCorrect() {
   if (globalMuted) return
-  if (!(await playSE("/sound/se_correct.mp3"))) playTone([880, 1320], 0.15)
+  if (!(await playSE("/sound/se_correct.mp3", 0.8))) playTone([880, 1320], 0.15)
 }
 
 export async function playWrong() {
   if (globalMuted) return
-  if (!(await playSE("/sound/se_wrong.mp3"))) playTone([220], 0.4)
+  if (!(await playSE("/sound/se_wrong.mp3", 1.0))) playTone([220], 0.4)
+}
+
+export async function playDecide() {
+  if (globalMuted) return
+  if (!(await playSE("/sound/se_decide.mp3", 0.5))) playTone([440, 660], 0.08)
 }
 
 // --- BGM (2 tracks) ---
