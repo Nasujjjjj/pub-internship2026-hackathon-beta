@@ -1,11 +1,7 @@
 import Image from "next/image"
-import { APP_TITLE, LOGO_SRC } from "@/lib/constants"
+import { APP_TITLE, APP_SUBTITLE, LOGO_SRC } from "@/lib/constants"
 import { ThemeToggle } from "@/components/theme-toggle"
 
-/**
- * AppHeader — top navigation bar.
- * To customize: edit APP_TITLE and LOGO_SRC in lib/constants.ts.
- */
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background text-foreground">
@@ -21,6 +17,9 @@ export function AppHeader() {
         )}
         <span className="text-sm font-semibold tracking-tight">
           {APP_TITLE}
+        </span>
+        <span className="text-xs text-muted-foreground hidden sm:inline">
+          {APP_SUBTITLE}
         </span>
         <div className="ml-auto">
           <ThemeToggle />

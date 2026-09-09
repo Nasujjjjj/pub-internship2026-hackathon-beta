@@ -1,61 +1,42 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Mascot } from "@/components/mascot"
+import { BackgroundGif, type GifState } from "@/components/background-gif"
+import { ResultScreen } from "@/components/result-screen"
 import { dummyBlankQuestions } from "@/lib/dummy-blank"
+import { playCorrect, playWrong, playStreak, startBgm, stopBgm, setMuted } from "@/lib/sound-manager"
 
 // --- Types ---
 
-interface SeriesPoint {
-  x: string
-  y: number
-}
-
-interface ChoiceItem {
-  label: string
-  series: number[]
-}
+interface SeriesPoint { x: string; y: number }
+interface ChoiceItem { label: string; series: number[] }
 
 interface Question {
-  ID: number
-  DECK: string
-  QTYPE: string
-  QUESTION_TEXT: string
-  ITEM_A: string | null
-  ITEM_B: string | null
-  METRIC: string
-  VALUE_A: number
-  VALUE_B: number
-  SERIES: SeriesPoint[] | null
-  MASK_FROM: number | null
-  MASK_TO: number | null
-  CHOICES: ChoiceItem[] | null
-  CORRECT: number
-  EXPLANATION: string
-  SQL_TEXT: string
+  ID: number; DECK: string; QTYPE: string; QUESTION_TEXT: string
+  ITEM_A: string | null; ITEM_B: string | null; METRIC: string
+  VALUE_A: number; VALUE_B: number
+  SERIES: SeriesPoint[] | null; MASK_FROM: number | null; MASK_TO: number | null
+  CHOICES: ChoiceItem[] | null; CORRECT: number; EXPLANATION: string; SQL_TEXT: string
 }
 
-interface RankingRow {
-  QUESTION_ID: number
-  QUESTION_TEXT: string
-  TOTAL: number
-  WRONG: number
-  WRONG_PCT: number
-}
+interface AnswerRecord { deck: string; correct: boolean }
 
-type Phase = "start" | "loading" | "question" | "result" | "finished"
+type Phase = "splash" | "start" | "loading" | "question" | "moving" | "result" | "finished"
+
+const MOVE_MS = 1500
 
 const DECKS = [
-  { value: "all", label: "すべて" },
-  { value: "category", label: "カテゴリ" },
-  { value: "state", label: "都道府県" },
-  { value: "month", label: "時期" },
-  { value: "segment", label: "顧客セグメント" },
-  { value: "weather", label: "天気" },
-  { value: "customer", label: "顧客属性" },
+  { value: "all", label: "すべて", emoji: "🎯" },
+  { value: "category", label: "カテゴリ", emoji: "🛍" },
+  { value: "state", label: "都道府県", emoji: "🗾" },
+  { value: "month", label: "時期", emoji: "📅" },
+  { value: "segment", label: "顧客セグメント", emoji: "👑" },
+  { value: "weather", label: "天気", emoji: "🌧" },
+  { value: "customer", label: "顧客属性", emoji: "👥" },
 ]
 
 const MODES = [
@@ -63,6 +44,18 @@ const MODES = [
   { value: "highlow", label: "High & Low" },
   { value: "blank", label: "虫食い" },
 ]
+
+const N_OPTIONS = [5, 10, 20]
+
+const DECK_COLORS: Record<string, string> = {
+  all: "from-blue-500 to-blue-700",
+  category: "from-pink-500 to-rose-600",
+  state: "from-green-500 to-emerald-700",
+  month: "from-amber-500 to-orange-600",
+  segment: "from-purple-500 to-violet-700",
+  weather: "from-sky-400 to-cyan-600",
+  customer: "from-indigo-500 to-blue-700",
+}
 
 // --- Helpers ---
 
@@ -79,25 +72,13 @@ function formatNumber(n: number, metric: string): string {
   return n.toLocaleString()
 }
 
-// --- SVG Line Chart ---
+// --- SVG ---
 
-function MiniLineChart({
-  points,
-  width = 120,
-  height = 60,
-  strokeColor = "currentColor",
-  strokeWidth = 2,
-}: {
-  points: number[]
-  width?: number
-  height?: number
-  strokeColor?: string
-  strokeWidth?: number
+function MiniLineChart({ points, width = 120, height = 60, strokeColor = "currentColor", strokeWidth = 2 }: {
+  points: number[]; width?: number; height?: number; strokeColor?: string; strokeWidth?: number
 }) {
   if (!points.length) return null
-  const min = Math.min(...points)
-  const max = Math.max(...points)
-  const range = max - min || 1
+  const min = Math.min(...points); const max = Math.max(...points); const range = max - min || 1
   const coords = points.map((v, i) => {
     const x = (i / Math.max(points.length - 1, 1)) * width
     const y = height - ((v - min) / range) * height
@@ -105,80 +86,61 @@ function MiniLineChart({
   })
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block">
-      <polyline
-        points={coords.join(" ")}
-        fill="none"
-        stroke={strokeColor}
-        strokeWidth={strokeWidth}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
+      <polyline points={coords.join(" ")} fill="none" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
 }
 
-function BlankChart({
-  series,
-  maskFrom,
-  maskTo,
-}: {
-  series: SeriesPoint[]
-  maskFrom: number
-  maskTo: number
-}) {
-  const W = 600
-  const H = 200
-  const PAD = 20
-  const chartW = W - PAD * 2
-  const chartH = H - PAD * 2
-
+function BlankChart({ series, maskFrom, maskTo }: { series: SeriesPoint[]; maskFrom: number; maskTo: number }) {
+  const W = 600, H = 200, PAD = 20
+  const chartW = W - PAD * 2, chartH = H - PAD * 2
   const vals = series.map((p) => p.y)
-  const min = Math.min(...vals)
-  const max = Math.max(...vals)
-  const range = max - min || 1
-
+  const min = Math.min(...vals), max = Math.max(...vals), range = max - min || 1
   const toX = (i: number) => PAD + (i / Math.max(series.length - 1, 1)) * chartW
   const toY = (v: number) => PAD + chartH - ((v - min) / range) * chartH
 
-  // Build two segments (before mask, after mask)
   const beforePts: string[] = []
   const afterPts: string[] = []
   for (let i = 0; i < series.length; i++) {
     const coord = `${toX(i)},${toY(series[i].y)}`
-    if (i < maskFrom) beforePts.push(coord)
-    if (i === maskFrom) beforePts.push(coord) // connect to mask edge
-    if (i > maskTo) afterPts.push(coord)
-    if (i === maskTo) afterPts.unshift(coord) // connect from mask edge
+    if (i <= maskFrom - 1) beforePts.push(coord)
+    if (i >= maskTo + 1) afterPts.push(coord)
   }
 
-  const maskX1 = toX(maskFrom)
-  const maskX2 = toX(maskTo)
-  const maskMidX = (maskX1 + maskX2) / 2
-  const maskMidY = PAD + chartH / 2
+  const bandX1 = toX(Math.max(maskFrom - 1, 0))
+  const bandX2 = toX(Math.min(maskTo + 1, series.length - 1))
+  const bandMidX = (bandX1 + bandX2) / 2
+  const bandMidY = PAD + chartH / 2
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block mx-auto max-w-full">
-      {/* grid */}
       <rect x={PAD} y={PAD} width={chartW} height={chartH} fill="none" stroke="var(--border)" strokeWidth={0.5} />
-      {/* before mask */}
-      {beforePts.length > 1 && (
-        <polyline points={beforePts.join(" ")} fill="none" stroke="var(--foreground)" strokeWidth={2} strokeLinejoin="round" />
-      )}
-      {/* after mask */}
-      {afterPts.length > 1 && (
-        <polyline points={afterPts.join(" ")} fill="none" stroke="var(--foreground)" strokeWidth={2} strokeLinejoin="round" />
-      )}
-      {/* mask band */}
-      <rect x={maskX1} y={PAD} width={maskX2 - maskX1} height={chartH} fill="var(--muted)" opacity={0.6} />
-      {/* ? box */}
-      <rect x={maskMidX - 24} y={maskMidY - 20} width={48} height={40} rx={4} fill="white" stroke="red" strokeWidth={2} />
-      <text x={maskMidX} y={maskMidY + 8} textAnchor="middle" fontSize={24} fontWeight="bold" fill="red">?</text>
-      {/* x-axis labels (first, mask edges, last) */}
-      {[0, maskFrom, maskTo, series.length - 1].map((idx) => (
-        <text key={idx} x={toX(idx)} y={H - 2} textAnchor="middle" fontSize={8} fill="var(--muted-foreground)">
-          {series[idx]?.x ?? ""}
-        </text>
+      {beforePts.length > 1 && <polyline points={beforePts.join(" ")} fill="none" stroke="var(--foreground)" strokeWidth={2} strokeLinejoin="round" />}
+      {afterPts.length > 1 && <polyline points={afterPts.join(" ")} fill="none" stroke="var(--foreground)" strokeWidth={2} strokeLinejoin="round" />}
+      <rect x={bandX1} y={PAD} width={bandX2 - bandX1} height={chartH} fill="var(--muted)" opacity={0.6} />
+      <rect x={bandMidX - 24} y={bandMidY - 20} width={48} height={40} rx={4} fill="white" stroke="red" strokeWidth={2} />
+      <text x={bandMidX} y={bandMidY + 8} textAnchor="middle" fontSize={24} fontWeight="bold" fill="red">?</text>
+      {[0, series.length - 1].map((idx) => (
+        <text key={idx} x={toX(idx)} y={H - 2} textAnchor="middle" fontSize={8} fill="var(--muted-foreground)">{series[idx]?.x ?? ""}</text>
       ))}
+    </svg>
+  )
+}
+
+function FullChart({ series }: { series: SeriesPoint[] }) {
+  const W = 600, H = 200, PAD = 20
+  const chartW = W - PAD * 2, chartH = H - PAD * 2
+  const vals = series.map((p) => p.y)
+  const min = Math.min(...vals), max = Math.max(...vals), range = max - min || 1
+  const pts = series.map((p, i) => {
+    const x = PAD + (i / Math.max(series.length - 1, 1)) * chartW
+    const y = PAD + chartH - ((p.y - min) / range) * chartH
+    return `${x},${y}`
+  })
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block mx-auto max-w-full">
+      <rect x={PAD} y={PAD} width={chartW} height={chartH} fill="none" stroke="var(--border)" strokeWidth={0.5} />
+      <polyline points={pts.join(" ")} fill="none" stroke="var(--foreground)" strokeWidth={2} strokeLinejoin="round" />
     </svg>
   )
 }
@@ -188,10 +150,12 @@ function BlankChart({
 export function QuizGame() {
   const [playerName, setPlayerName] = useState("guest")
   const [mode, setMode] = useState("mix")
+  const [nQuestions, setNQuestions] = useState(10)
   const [deck, setDeck] = useState("all")
+  const [idsParam, setIdsParam] = useState("")
   const [questions, setQuestions] = useState<Question[]>([])
   const [currentIdx, setCurrentIdx] = useState(0)
-  const [phase, setPhase] = useState<Phase>("start")
+  const [phase, setPhase] = useState<Phase>("splash")
   const [chosen, setChosen] = useState<number | null>(null)
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
@@ -199,18 +163,42 @@ export function QuizGame() {
   const [showSql, setShowSql] = useState(false)
   const [showDef, setShowDef] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [ranking, setRanking] = useState<RankingRow[]>([])
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null)
+  const [gifState, setGifState] = useState<GifState>("wait")
+  const [muted, setMutedState] = useState(false)
+  const [answers, setAnswers] = useState<AnswerRecord[]>([])
+  const moveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const initRef = useRef(false)
 
-  const fetchQuestions = useCallback(async (selectedDeck: string, selectedMode: string) => {
+  // URL param init
+  useEffect(() => {
+    if (initRef.current) return
+    initRef.current = true
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get("player")) setPlayerName(sp.get("player")!)
+    if (sp.get("mode")) setMode(sp.get("mode")!)
+    if (sp.get("deck")) setDeck(sp.get("deck")!)
+    if (sp.get("n")) setNQuestions(parseInt(sp.get("n")!, 10) || 10)
+    if (sp.get("ids")) setIdsParam(sp.get("ids")!)
+    if (sp.get("ids") || sp.get("autostart") === "1") {
+      setPhase("start")
+      // auto-start after state settles
+      setTimeout(() => {
+        document.getElementById("autostart-trigger")?.click()
+      }, 100)
+    }
+  }, [])
+
+  const fetchQuestions = useCallback(async (selectedDeck: string, selectedMode: string, ids?: string, n?: number) => {
     setPhase("loading")
     setError(null)
     try {
-      const res = await fetch(`/api/quiz?deck=${selectedDeck}&mode=${selectedMode}`)
+      let url = `/api/quiz?deck=${selectedDeck}&mode=${selectedMode}&n=${n ?? nQuestions}`
+      if (ids) url += `&ids=${ids}`
+      const res = await fetch(url)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       let qs: Question[] = data.questions ?? []
-      // If blank mode and 0 blank questions from DB, use dummy
       const blankQs = qs.filter((q) => q.QTYPE === "blank")
       if ((selectedMode === "blank" || selectedMode === "mix") && blankQs.length === 0) {
         qs = [...qs, ...(dummyBlankQuestions as unknown as Question[])]
@@ -222,26 +210,30 @@ export function QuizGame() {
       setStreak(0)
       setTotal(0)
       setLastCorrect(null)
+      setAnswers([])
+      setGifState("wait")
       setPhase("question")
+      startBgm()
     } catch (e) {
       setError(e instanceof Error ? e.message : "読み込み失敗")
       setPhase("start")
     }
-  }, [])
-
-  const fetchRanking = useCallback(async () => {
-    try {
-      const res = await fetch("/api/ranking")
-      const data = await res.json()
-      if (data.ranking) setRanking(data.ranking)
-    } catch {
-      // ranking is optional
-    }
-  }, [])
+  }, [nQuestions])
 
   const handleStart = (selectedDeck: string) => {
     setDeck(selectedDeck)
-    fetchQuestions(selectedDeck, mode)
+    fetchQuestions(selectedDeck, mode, idsParam || undefined, nQuestions)
+  }
+
+  const handleExit = () => {
+    if (moveTimerRef.current) clearTimeout(moveTimerRef.current)
+    setQuestions([])
+    setScore(0)
+    setStreak(0)
+    setTotal(0)
+    setPhase("start")
+    setAnswers([])
+    stopBgm()
   }
 
   const q = questions[currentIdx] ?? null
@@ -250,98 +242,135 @@ export function QuizGame() {
     if (!q) return
     setChosen(choice)
     const correct = choice === q.CORRECT
-    setLastCorrect(correct)
-    if (correct) {
-      setScore((s) => s + 1)
-      setStreak((s) => s + 1)
-    } else {
-      setStreak(0)
-    }
-    setTotal((t) => t + 1)
-    setPhase("result")
-    setShowSql(false)
-    setShowDef(false)
 
+    // POST answer immediately
     fetch("/api/answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question_id: q.ID,
-        chosen: choice,
-        player: playerName || "guest",
-        is_correct: correct,
-      }),
+      body: JSON.stringify({ question_id: q.ID, chosen: choice, player: playerName || "guest", is_correct: correct }),
     }).catch(() => {})
+
+    // Determine direction
+    const isLeft = q.QTYPE === "blank" ? (choice === 0 || choice === 2) : choice === 0
+    setGifState(isLeft ? "move_l" : "move_r")
+    setPhase("moving")
+
+    moveTimerRef.current = setTimeout(() => {
+      setLastCorrect(correct)
+      if (correct) {
+        setScore((s) => s + 1)
+        setStreak((prev) => {
+          const next = prev + 1
+          if (next >= 3) playStreak()
+          else playCorrect()
+          return next
+        })
+      } else {
+        setStreak(0)
+        playWrong()
+      }
+      setTotal((t) => t + 1)
+      setAnswers((a) => [...a, { deck: DECKS.find((d) => d.value === q.DECK)?.label ?? q.DECK, correct }])
+      setGifState(correct ? "answer_true" : "answer_false")
+      setPhase("result")
+      setShowSql(false)
+      setShowDef(false)
+    }, MOVE_MS)
   }
 
   const handleNext = () => {
     if (currentIdx + 1 >= questions.length) {
       setPhase("finished")
-      fetchRanking()
+      stopBgm()
     } else {
       setCurrentIdx((i) => i + 1)
       setChosen(null)
       setPhase("question")
       setShowSql(false)
       setShowDef(false)
+      setGifState("wait")
     }
+  }
+
+  const handleMuteToggle = () => {
+    const next = !muted
+    setMutedState(next)
+    setMuted(next)
+  }
+
+  // --- Splash ---
+  if (phase === "splash") {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center"
+        style={{ background: "linear-gradient(135deg, #0a1628 0%, #1a2a4a 40%, #0f1f3a 100%)" }}>
+        {/* Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute w-96 h-96 rounded-full opacity-20" style={{ background: "radial-gradient(circle, #29b5e8 0%, transparent 70%)", top: "10%", left: "10%" }} />
+          <div className="absolute w-80 h-80 rounded-full opacity-15" style={{ background: "radial-gradient(circle, #4f9cf7 0%, transparent 70%)", bottom: "15%", right: "5%" }} />
+          <div className="absolute w-64 h-64 rounded-full opacity-10" style={{ background: "radial-gradient(circle, #29b5e8 0%, transparent 70%)", top: "50%", left: "50%" }} />
+        </div>
+        <h1 className="text-6xl font-black text-white tracking-wider mb-4 relative z-10">β-LEAGUE</h1>
+        <p className="text-lg text-blue-200 mb-2 relative z-10">データでひらく、新しい視点。</p>
+        <p className="text-sm text-blue-300/70 mb-8 relative z-10 tracking-widest">DATA × QUIZ × ANALYSIS</p>
+        <Button
+          size="lg"
+          className="relative z-10 text-lg px-8 py-6"
+          onClick={() => setPhase("start")}
+        >
+          START →
+        </Button>
+      </div>
+    )
   }
 
   // --- Start Screen ---
   if (phase === "start") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-lg">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">楽天クイズ</CardTitle>
-            <p className="text-muted-foreground text-sm mt-2">
-              データの直感と実態のズレを体験しよう
-            </p>
+            <CardTitle className="text-2xl">β-LEAGUE</CardTitle>
+            <p className="text-muted-foreground text-sm mt-1">楽天クイズ ― 知ってるつもり？</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && <p className="text-destructive text-sm text-center">{error}</p>}
 
-            {/* Player Name */}
             <div>
               <label className="text-sm font-medium block mb-1">回答者名</label>
-              <input
-                type="text"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="guest"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-              />
+              <input type="text" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="guest" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
             </div>
 
-            {/* Mode Selection */}
-            <div>
-              <label className="text-sm font-medium block mb-1">モード</label>
-              <div className="flex gap-2">
-                {MODES.map((m) => (
-                  <Button
-                    key={m.value}
-                    variant={mode === m.value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setMode(m.value)}
-                  >
-                    {m.label}
-                  </Button>
-                ))}
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-sm font-medium block mb-1">モード</label>
+                <div className="flex gap-1">
+                  {MODES.map((m) => (
+                    <Button key={m.value} variant={mode === m.value ? "default" : "outline"} size="sm" onClick={() => setMode(m.value)}>{m.label}</Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">問題数</label>
+                <div className="flex gap-1">
+                  {N_OPTIONS.map((n) => (
+                    <Button key={n} variant={nQuestions === n ? "default" : "outline"} size="sm" onClick={() => setNQuestions(n)}>{n}</Button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Deck Selection */}
-            <p className="text-sm font-medium text-center">デッキを選んでスタート</p>
-            <div className="grid grid-cols-2 gap-2">
+            <p className="text-sm font-medium text-center mt-2">デッキを選んでスタート</p>
+            <div className="grid grid-cols-2 gap-3">
               {DECKS.map((d) => (
-                <Button
+                <button
                   key={d.value}
-                  variant={d.value === "all" ? "default" : "outline"}
-                  className={d.value === "all" ? "col-span-2" : ""}
+                  id={d.value === (idsParam ? deck : "all") ? "autostart-trigger" : undefined}
+                  className={`rounded-xl p-4 text-white text-left transition-all hover:scale-105 ${d.value === "all" ? "col-span-2" : ""} bg-gradient-to-br ${DECK_COLORS[d.value] ?? "from-gray-500 to-gray-700"}`}
                   onClick={() => handleStart(d.value)}
                 >
-                  {d.label}
-                </Button>
+                  <span className="text-2xl block mb-1">{d.emoji}</span>
+                  <span className="text-sm font-semibold">{d.label}</span>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -350,145 +379,79 @@ export function QuizGame() {
     )
   }
 
-  // --- Loading ---
   if (phase === "loading") {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-muted-foreground">読み込み中...</p>
-      </div>
-    )
+    return <div className="flex items-center justify-center min-h-[60vh]"><p className="text-muted-foreground">読み込み中...</p></div>
   }
 
-  // --- Finished Screen ---
+  // --- Finished ---
   if (phase === "finished") {
-    const pct = total > 0 ? Math.round((score / total) * 100) : 0
-    const allCorrect = score === total && total > 0
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-md text-center">
-          <CardHeader>
-            <CardTitle
-              className="text-2xl"
-              style={
-                allCorrect
-                  ? {
-                      background: "linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }
-                  : undefined
-              }
-            >
-              結果発表
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-5xl font-bold tabular-nums">{score} / {total}</p>
-            <p className="text-muted-foreground">正答率 {pct}%</p>
-
-            {/* Ranking */}
-            {ranking.length > 0 && (
-              <div className="text-left mt-4">
-                <h3 className="text-sm font-semibold mb-2">みんなが外した問題 TOP5</h3>
-                <div className="space-y-1">
-                  {ranking.map((r, i) => (
-                    <div key={r.QUESTION_ID} className="flex items-start gap-2 text-xs">
-                      <span className="font-bold text-muted-foreground">{i + 1}.</span>
-                      <span className="flex-1">{r.QUESTION_TEXT}</span>
-                      <span className="text-destructive font-semibold whitespace-nowrap">{r.WRONG_PCT}% 不正解</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 justify-center mt-4">
-              <Button onClick={() => fetchQuestions(deck, mode)}>もう一度</Button>
-              <Button variant="outline" onClick={() => { setQuestions([]); setPhase("start") }}>
-                デッキ選択に戻る
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
+    return <ResultScreen score={score} total={total} answers={answers} onRetry={() => fetchQuestions(deck, mode, idsParam || undefined, nQuestions)} onTop={() => { setQuestions([]); setPhase("start") }} />
   }
 
   if (!q) return null
 
   const isCorrect = chosen === q.CORRECT
   const isBlank = q.QTYPE === "blank"
+  const showGif = phase === "question" || phase === "moving" || phase === "result"
 
-  // --- Question / Result Screen ---
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4 relative">
-      {/* Mascot */}
-      <div className="fixed bottom-4 left-4 z-50">
-        <Mascot streak={streak} isCorrect={lastCorrect} />
-      </div>
+      {/* Background GIF */}
+      {showGif && <BackgroundGif state={gifState} questionIdx={currentIdx} />}
 
-      {/* Score Bar */}
+      {/* Mascot */}
+      <div className="fixed bottom-4 left-4 z-50"><Mascot streak={streak} isCorrect={lastCorrect} /></div>
+
+      {/* Top bar */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="text-sm">
-            {currentIdx + 1} / {questions.length}
-          </Badge>
-          <span className="text-sm text-muted-foreground">
-            スコア <span className="font-semibold text-foreground">{score}</span>
-          </span>
-          {streak >= 2 && (
-            <span className="text-sm text-orange-500 font-semibold">{streak} 連勝!</span>
-          )}
+          <span className="text-sm font-bold">Q {currentIdx + 1} / {questions.length}</span>
+          {/* Progress dots */}
+          <div className="flex gap-1">
+            {questions.map((_, i) => (
+              <span key={i} className={`w-2 h-2 rounded-full ${i < total ? (answers[i]?.correct ? "bg-green-500" : "bg-red-500") : i === currentIdx ? "bg-primary" : "bg-muted"}`} />
+            ))}
+          </div>
         </div>
-        <Badge variant="outline" className="text-xs">
-          {DECKS.find((d) => d.value === q.DECK)?.label ?? q.DECK}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold">SCORE {score * 100} pt</span>
+          <button onClick={handleMuteToggle} className="text-lg" title={muted ? "Unmute" : "Mute"}>{muted ? "🔇" : "🔊"}</button>
+          <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={handleExit}>EXIT</Button>
+        </div>
       </div>
 
+      {streak >= 2 && <div className="text-center text-orange-500 font-bold text-sm animate-bounce">{streak} 連勝!</div>}
+
       {/* Question Card */}
-      <Card>
+      <Card className={showGif ? "bg-background/85 backdrop-blur" : ""}>
         <CardHeader>
+          <Badge variant="outline" className="text-xs w-fit mb-1">{DECKS.find((d) => d.value === q.DECK)?.label ?? q.DECK}</Badge>
           <CardTitle className="text-lg leading-relaxed">{q.QUESTION_TEXT}</CardTitle>
-          {isBlank && phase === "question" && (
-            <p className="text-xs text-muted-foreground mt-1">わからないだろう？</p>
-          )}
+          {isBlank && phase === "question" && <p className="text-xs text-muted-foreground mt-1">わからないだろう？</p>}
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Blank: Show chart */}
-          {isBlank && q.SERIES && q.MASK_FROM != null && q.MASK_TO != null && (
+          {/* Blank chart (question phase only) */}
+          {isBlank && q.SERIES && q.MASK_FROM != null && q.MASK_TO != null && phase === "question" && (
             <BlankChart series={q.SERIES} maskFrom={q.MASK_FROM} maskTo={q.MASK_TO} />
           )}
 
-          {/* Question phase */}
+          {/* Question: High & Low buttons */}
           {phase === "question" && !isBlank && (
             <div className="grid grid-cols-2 gap-3">
-              <Button
-                size="lg"
-                className="h-20 text-base whitespace-normal"
-                onClick={() => handleAnswer(0)}
-              >
-                {q.ITEM_A}
+              <Button size="lg" className="h-20 text-base whitespace-normal" onClick={() => handleAnswer(0)}>
+                <Badge className="mr-2">A</Badge>{q.ITEM_A}
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-20 text-base whitespace-normal"
-                onClick={() => handleAnswer(1)}
-              >
-                {q.ITEM_B}
+              <Button size="lg" variant="outline" className="h-20 text-base whitespace-normal" onClick={() => handleAnswer(1)}>
+                <Badge variant="outline" className="mr-2">B</Badge>{q.ITEM_B}
               </Button>
             </div>
           )}
 
-          {/* Blank question: choice cards */}
+          {/* Question: Blank choice cards */}
           {phase === "question" && isBlank && q.CHOICES && (
             <div className="grid grid-cols-2 gap-3">
               {q.CHOICES.map((c, i) => (
-                <button
-                  key={i}
-                  className="rounded-lg border p-3 text-center hover:ring-2 hover:ring-primary transition-all"
-                  onClick={() => handleAnswer(i)}
-                >
+                <button key={i} className="rounded-lg border p-3 text-center hover:ring-2 hover:ring-primary transition-all" onClick={() => handleAnswer(i)}>
                   <div className="text-xs font-semibold mb-1">{String.fromCharCode(65 + i)}</div>
                   <MiniLineChart points={c.series} width={100} height={40} strokeColor="var(--foreground)" />
                   <div className="text-xs text-muted-foreground mt-1 truncate">{c.label}</div>
@@ -497,82 +460,41 @@ export function QuizGame() {
             </div>
           )}
 
+          {/* Moving phase */}
+          {phase === "moving" && (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-pulse text-lg font-bold text-muted-foreground">判定中...</div>
+            </div>
+          )}
+
           {/* Result phase */}
           {phase === "result" && (
             <div className="space-y-4">
-              {/* Correct / Incorrect Banner */}
-              <div
-                className={`rounded-lg p-4 text-center text-lg font-bold ${
-                  isCorrect
-                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                    : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                }`}
-              >
+              <div className={`rounded-lg p-4 text-center text-lg font-bold ${isCorrect ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"}`}>
                 {isCorrect ? "正解!" : "不正解..."}
               </div>
 
-              {/* High & Low: Value Comparison */}
+              {/* High & Low values */}
               {!isBlank && (
                 <div className="grid grid-cols-2 gap-3">
-                  <div
-                    className={`rounded-lg border p-4 text-center ${
-                      q.CORRECT === 0 ? "ring-2 ring-green-500" : ""
-                    }`}
-                  >
-                    <p className="text-sm text-muted-foreground mb-1">{q.ITEM_A}</p>
-                    <p className="text-2xl font-bold tabular-nums">
-                      {formatNumber(q.VALUE_A, q.METRIC)}
-                    </p>
-                    {q.CORRECT === 0 && <Badge className="mt-2 bg-green-600">正解</Badge>}
-                  </div>
-                  <div
-                    className={`rounded-lg border p-4 text-center ${
-                      q.CORRECT === 1 ? "ring-2 ring-green-500" : ""
-                    }`}
-                  >
-                    <p className="text-sm text-muted-foreground mb-1">{q.ITEM_B}</p>
-                    <p className="text-2xl font-bold tabular-nums">
-                      {formatNumber(q.VALUE_B, q.METRIC)}
-                    </p>
-                    {q.CORRECT === 1 && <Badge className="mt-2 bg-green-600">正解</Badge>}
-                  </div>
+                  {[0, 1].map((idx) => (
+                    <div key={idx} className={`rounded-lg border p-4 text-center ${q.CORRECT === idx ? "ring-2 ring-green-500" : ""}`}>
+                      <p className="text-sm text-muted-foreground mb-1">{idx === 0 ? q.ITEM_A : q.ITEM_B}</p>
+                      <p className="text-2xl font-bold tabular-nums">{formatNumber(idx === 0 ? q.VALUE_A : q.VALUE_B, q.METRIC)}</p>
+                      {q.CORRECT === idx && <Badge className="mt-2 bg-green-600">正解</Badge>}
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {/* Blank: show full chart + choice labels */}
-              {isBlank && q.SERIES && q.MASK_FROM != null && q.MASK_TO != null && (
+              {/* Blank result: full chart + labels */}
+              {isBlank && q.SERIES && (
                 <div className="space-y-2">
-                  {/* Full chart without mask */}
-                  <svg width="100%" viewBox="0 0 600 200" className="block mx-auto max-w-full">
-                    {(() => {
-                      const W = 600, H = 200, PAD = 20
-                      const chartW = W - PAD * 2, chartH = H - PAD * 2
-                      const vals = q.SERIES!.map((p) => p.y)
-                      const min = Math.min(...vals), max = Math.max(...vals)
-                      const range = max - min || 1
-                      const pts = q.SERIES!.map((p, i) => {
-                        const x = PAD + (i / Math.max(q.SERIES!.length - 1, 1)) * chartW
-                        const y = PAD + chartH - ((p.y - min) / range) * chartH
-                        return `${x},${y}`
-                      })
-                      return (
-                        <>
-                          <rect x={PAD} y={PAD} width={chartW} height={chartH} fill="none" stroke="var(--border)" strokeWidth={0.5} />
-                          <polyline points={pts.join(" ")} fill="none" stroke="var(--foreground)" strokeWidth={2} strokeLinejoin="round" />
-                        </>
-                      )
-                    })()}
-                  </svg>
-                  {/* Choice labels */}
+                  <FullChart series={q.SERIES} />
                   {q.CHOICES && (
                     <div className="grid grid-cols-2 gap-2">
                       {q.CHOICES.map((c, i) => (
-                        <div
-                          key={i}
-                          className={`rounded-lg border p-2 text-center text-xs ${
-                            i === q.CORRECT ? "ring-2 ring-green-500 font-bold" : "text-muted-foreground"
-                          }`}
-                        >
+                        <div key={i} className={`rounded-lg border p-2 text-center text-xs ${i === q.CORRECT ? "ring-2 ring-green-500 font-bold" : "text-muted-foreground"}`}>
                           {String.fromCharCode(65 + i)}: {c.label}
                           {i === q.CORRECT && <Badge className="ml-1 bg-green-600 text-[10px]">正解</Badge>}
                         </div>
@@ -582,38 +504,17 @@ export function QuizGame() {
                 </div>
               )}
 
-              {/* Explanation */}
-              {q.EXPLANATION && (
-                <div className="rounded-lg bg-muted p-4">
-                  <p className="text-sm whitespace-pre-wrap">{q.EXPLANATION}</p>
-                </div>
-              )}
+              {q.EXPLANATION && <div className="rounded-lg bg-muted p-4"><p className="text-sm whitespace-pre-wrap">{q.EXPLANATION}</p></div>}
 
-              {/* SQL toggle */}
               {q.SQL_TEXT && (
                 <div>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground underline"
-                    onClick={() => setShowSql(!showSql)}
-                  >
-                    {showSql ? "SQL を閉じる" : "使った SQL を見る"}
-                  </button>
-                  {showSql && (
-                    <pre className="mt-2 rounded-lg bg-muted p-3 text-xs overflow-x-auto whitespace-pre-wrap">
-                      {q.SQL_TEXT}
-                    </pre>
-                  )}
+                  <button className="text-xs text-muted-foreground hover:text-foreground underline" onClick={() => setShowSql(!showSql)}>{showSql ? "SQL を閉じる" : "使った SQL を見る"}</button>
+                  {showSql && <pre className="mt-2 rounded-lg bg-muted p-3 text-xs overflow-x-auto whitespace-pre-wrap">{q.SQL_TEXT}</pre>}
                 </div>
               )}
 
-              {/* Definition toggle */}
               <div>
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
-                  onClick={() => setShowDef(!showDef)}
-                >
-                  {showDef ? "定義を閉じる" : "定義"}
-                </button>
+                <button className="text-xs text-muted-foreground hover:text-foreground underline" onClick={() => setShowDef(!showDef)}>{showDef ? "定義を閉じる" : "定義"}</button>
                 {showDef && (
                   <div className="mt-2 rounded-lg bg-muted p-3 text-xs space-y-1">
                     <p>注文＝顧客ID × 購入日時</p>
@@ -625,10 +526,7 @@ export function QuizGame() {
                 )}
               </div>
 
-              {/* Next Button */}
-              <Button className="w-full" size="lg" onClick={handleNext}>
-                {currentIdx + 1 >= questions.length ? "結果を見る" : "次の問題"}
-              </Button>
+              <Button className="w-full" size="lg" onClick={handleNext}>{currentIdx + 1 >= questions.length ? "結果を見る" : "次の問題"}</Button>
             </div>
           )}
         </CardContent>
