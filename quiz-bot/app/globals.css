@@ -226,8 +226,8 @@
   position: fixed;
   z-index: 1;
   left: 50%;
-  bottom: -6rem;
-  width: 14rem;
+  bottom: -1rem;
+  width: 18rem;
   pointer-events: none;
   filter: drop-shadow(0 20px 20px rgb(2 8 23 / 0.68));
   animation: cart-rattle 0.72s ease-in-out infinite alternate;
@@ -391,7 +391,7 @@
 
 @media (max-width: 700px) {
   .adventure-panorama { background-position: 50% center; }
-  .adventure-cart { bottom: -5rem; width: 12rem; opacity: 0.94; }
+  .adventure-cart { bottom: -0.5rem; width: 14rem; opacity: 0.94; }
   .adventure-content main { padding-bottom: 5rem; }
 }
 
