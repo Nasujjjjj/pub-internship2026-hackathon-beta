@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import { createContext, useContext, useState } from "react"
 import type React from "react"
 
@@ -12,9 +11,16 @@ export type RideState =
   | "left-lava"
   | "right-lava"
 
-const AdventureRideContext = createContext<
-  { rideState: RideState; setRideState: (state: RideState) => void } | undefined
->(undefined)
+export type CartVariant = "normal" | "parrot"
+
+interface AdventureRideValue {
+  rideState: RideState
+  setRideState: (state: RideState) => void
+  cartVariant: CartVariant
+  setCartVariant: (v: CartVariant) => void
+}
+
+const AdventureRideContext = createContext<AdventureRideValue | undefined>(undefined)
 
 export function useAdventureRide() {
   const context = useContext(AdventureRideContext)
@@ -35,12 +41,18 @@ function TanakaRider() {
   )
 }
 
+const CART_SRC: Record<CartVariant, string> = {
+  normal: "/adventure/cart.png",
+  parrot: "/adventure/cart-parrot.gif",
+}
+
 export function AdventureStage({ children }: { children: React.ReactNode }) {
   const [rideState, setRideState] = useState<RideState>("parked")
+  const [cartVariant, setCartVariant] = useState<CartVariant>("normal")
   const isLava = rideState.endsWith("lava")
 
   return (
-    <AdventureRideContext.Provider value={{ rideState, setRideState }}>
+    <AdventureRideContext.Provider value={{ rideState, setRideState, cartVariant, setCartVariant }}>
       <div className="adventure-stage" data-ride-state={rideState}>
         <div className="adventure-panorama" aria-hidden="true" />
         <div className="adventure-vignette" aria-hidden="true" />
@@ -56,13 +68,11 @@ export function AdventureStage({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="adventure-cart" aria-hidden="true">
-          <TanakaRider />
-          <Image
-            src="/adventure/mine-cart.png"
+          {cartVariant === "parrot" && <TanakaRider />}
+          <img
+            src={CART_SRC[cartVariant]}
             alt=""
-            width={1374}
-            height={1145}
-            priority
+            style={{ width: "100%", height: "auto" }}
           />
         </div>
 

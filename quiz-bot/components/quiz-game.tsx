@@ -151,7 +151,7 @@ function FullChart({ series }: { series: SeriesPoint[] }) {
 // --- Component ---
 
 export function QuizGame() {
-  const { setRideState } = useAdventureRide()
+  const { setRideState, setCartVariant } = useAdventureRide()
   const [playerName, setPlayerName] = useState("guest")
   const [mode, setMode] = useState("mix")
   const [nQuestions, setNQuestions] = useState(10)
@@ -185,9 +185,9 @@ export function QuizGame() {
 
   function checkRainbow(name: string) {
     const norm = normalizeForRainbow(name)
-    if (norm === "partyparrot") { setRainbow(true); setRainbowType("parrot"); return true }
-    if (norm === "rainbowtanaka") { setRainbow(true); setRainbowType("tanaka"); return true }
-    setRainbow(false); setRainbowType(null); return false
+    if (norm === "partyparrot") { setRainbow(true); setRainbowType("parrot"); setCartVariant("parrot"); return true }
+    if (norm === "rainbowtanaka") { setRainbow(true); setRainbowType("tanaka"); setCartVariant("parrot"); return true }
+    setRainbow(false); setRainbowType(null); setCartVariant("normal"); return false
   }
 
   // URL param init
