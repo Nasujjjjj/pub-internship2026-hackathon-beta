@@ -211,13 +211,16 @@ export function QuizGame() {
   const initRef = useRef(false)
 
   function normalizeForRainbow(name: string): string {
-    return name.trim().toLowerCase().replace(/[\s\-\u3000_]/g, "")
+    return name.trim().toLowerCase().replace(/[\s\-\u3000_ー]/g, "")
   }
+
+  const PARROT_NAMES = ["partyparrot", "パーティパロット", "ぱーてぃぱろっと"]
+  const TANAKA_NAMES = ["rainbowtanaka", "レインボ田中", "レインボたなか", "れいんぼたなか"]
 
   function checkRainbow(name: string) {
     const norm = normalizeForRainbow(name)
-    if (norm === "partyparrot") { setRainbow(true); setRainbowType("parrot"); setCartVariant("parrot"); return true }
-    if (norm === "rainbowtanaka") { setRainbow(true); setRainbowType("tanaka"); setCartVariant("parrot"); return true }
+    if (PARROT_NAMES.some((n) => normalizeForRainbow(n) === norm)) { setRainbow(true); setRainbowType("parrot"); setCartVariant("parrot"); return true }
+    if (TANAKA_NAMES.some((n) => normalizeForRainbow(n) === norm)) { setRainbow(true); setRainbowType("tanaka"); setCartVariant("parrot"); return true }
     setRainbow(false); setRainbowType(null); setCartVariant("normal"); return false
   }
 
@@ -424,7 +427,7 @@ export function QuizGame() {
             <div>
               <label className="text-sm font-medium block mb-1">回答者名</label>
               <div className="flex gap-2">
-                <input type="text" className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="guest" value={playerName} onChange={(e) => setPlayerName(e.target.value)} onBlur={() => checkRainbow(playerName)} />
+                <input type="text" className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="guest" value={playerName} onChange={(e) => setPlayerName(e.target.value)} onBlur={() => checkRainbow(playerName)} onKeyDown={(e) => { if (e.key === "Enter") checkRainbow(playerName) }} />
                 <Button size="sm" variant="outline" onClick={() => checkRainbow(playerName)}>確定</Button>
               </div>
             </div>
