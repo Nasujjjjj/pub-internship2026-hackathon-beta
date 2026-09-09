@@ -9,7 +9,8 @@ import { BackgroundGif, type GifState } from "@/components/background-gif"
 import { ResultScreen } from "@/components/result-screen"
 import { useAdventureRide, type RideState } from "@/components/adventure-stage"
 import { dummyBlankQuestions } from "@/lib/dummy-blank"
-import { playCorrect, playWrong, playStreak, playDecide, playReveal, startBgm, stopBgm, setMuted, preloadAll } from "@/lib/sound-manager"
+import { playCorrect, playWrong, playStreak, playDecide, playReveal, startBgmGame, startBgmMenu, stopAllBgm, setMuted, preloadAll } from "@/lib/sound-manager"
+import { ParrotRain } from "@/components/parrot-rain"
 
 // --- Types ---
 
@@ -169,25 +170,35 @@ export function QuizGame() {
   const [gifState, setGifState] = useState<GifState>("wait")
   const [muted, setMutedState] = useState(false)
   const [answers, setAnswers] = useState<AnswerRecord[]>([])
+  const [rainbow, setRainbow] = useState(false)
+  const [rainbowType, setRainbowType] = useState<"parrot" | "tanaka" | null>(null)
+  const [dobon, setDobon] = useState(false)
+  const [dobonAt, setDobonAt] = useState<number | null>(null)
+  const [parrotOverride, setParrotOverride] = useState<string | undefined>(undefined)
   const moveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initRef = useRef(false)
+
+  function checkRainbow(name: string) {
+    const low = name.trim().toLowerCase()
+    if (low === "party_parrot") { setRainbow(true); setRainbowType("parrot"); playStreak(); return true }
+    if (low === "rainbow_tanaka") { setRainbow(true); setRainbowType("tanaka"); playStreak(); return true }
+    setRainbow(false); setRainbowType(null); return false
+  }
 
   // URL param init
   useEffect(() => {
     if (initRef.current) return
     initRef.current = true
     const sp = new URLSearchParams(window.location.search)
-    if (sp.get("player")) setPlayerName(sp.get("player")!)
+    if (sp.get("player")) { setPlayerName(sp.get("player")!); checkRainbow(sp.get("player")!) }
     if (sp.get("mode")) setMode(sp.get("mode")!)
     if (sp.get("deck")) setDeck(sp.get("deck")!)
     if (sp.get("n")) setNQuestions(parseInt(sp.get("n")!, 10) || 10)
     if (sp.get("ids")) setIdsParam(sp.get("ids")!)
+    if (sp.get("dobon") === "1") setDobon(true)
     if (sp.get("ids") || sp.get("autostart") === "1") {
       setPhase("start")
-      // auto-start after state settles
-      setTimeout(() => {
-        document.getElementById("autostart-trigger")?.click()
-      }, 100)
+      setTimeout(() => { document.getElementById("autostart-trigger")?.click() }, 100)
     }
   }, [])
 
@@ -216,7 +227,9 @@ export function QuizGame() {
       setGifState("wait")
       setPhase("question")
       setRideState("running")
-      startBgm()
+      setDobonAt(null)
+      setParrotOverride(undefined)
+      startBgmGame()
     } catch (e) {
       setError(e instanceof Error ? e.message : "読み込み失敗")
       setPhase("start")
@@ -226,6 +239,7 @@ export function QuizGame() {
 
   const handleStart = (selectedDeck: string) => {
     setDeck(selectedDeck)
+    checkRainbow(playerName)
     preloadAll()
     fetchQuestions(selectedDeck, mode, idsParam || undefined, nQuestions)
   }
@@ -239,7 +253,8 @@ export function QuizGame() {
     setPhase("start")
     setAnswers([])
     setRideState("parked")
-    stopBgm()
+    stopAllBgm()
+    startBgmMenu()
   }
 
   const q = questions[currentIdx] ?? null
@@ -277,9 +292,12 @@ export function QuizGame() {
           else playCorrect()
           return next
         })
+        if (rainbow) setParrotOverride("partyparrot")
       } else {
         setStreak(0)
         playWrong()
+        if (rainbow) setParrotOverride("sadparrot")
+        if (dobon) { setDobonAt(currentIdx + 1); setTimeout(() => playReveal(), 400) }
       }
       setTotal((t) => t + 1)
       setAnswers((a) => [...a, { deck: DECKS.find((d) => d.value === q.DECK)?.label ?? q.DECK, correct }])
@@ -291,10 +309,13 @@ export function QuizGame() {
   }
 
   const handleNext = () => {
-    if (currentIdx + 1 >= questions.length) {
+    const isLast = currentIdx + 1 >= questions.length
+    const dobonEnd = dobon && dobonAt != null
+    if (isLast || dobonEnd) {
       setPhase("finished")
       setRideState("parked")
-      stopBgm()
+      stopAllBgm()
+      startBgmMenu()
     } else {
       setCurrentIdx((i) => i + 1)
       setChosen(null)
@@ -303,6 +324,7 @@ export function QuizGame() {
       setShowDef(false)
       setGifState("wait")
       setRideState("running")
+      setParrotOverride(undefined)
     }
   }
 
@@ -329,7 +351,7 @@ export function QuizGame() {
         <Button
           size="lg"
           className="relative z-10 text-lg px-8 py-6"
-          onClick={() => setPhase("start")}
+          onClick={() => { startBgmMenu(); setPhase("start") }}
         >
           START →
         </Button>
@@ -373,6 +395,12 @@ export function QuizGame() {
               </div>
             </div>
 
+            {/* Dobon toggle */}
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={dobon} onChange={(e) => setDobon(e.target.checked)} className="rounded" />
+              <span>ドボン（1 回間違えたら終了）</span>
+            </label>
+
             <p className="text-sm font-medium text-center mt-2">デッキを選んでスタート</p>
             <div className="grid grid-cols-2 gap-3">
               {DECKS.map((d) => (
@@ -399,7 +427,7 @@ export function QuizGame() {
 
   // --- Finished ---
   if (phase === "finished") {
-    return <ResultScreen score={score} total={total} answers={answers} onRetry={() => { preloadAll(); fetchQuestions(deck, mode, idsParam || undefined, nQuestions) }} onTop={() => { setQuestions([]); setPhase("start"); setRideState("parked") }} />
+    return <ResultScreen score={score} total={total} answers={answers} rainbow={rainbow} dobonAt={dobonAt} onRetry={() => { preloadAll(); fetchQuestions(deck, mode, idsParam || undefined, nQuestions) }} onTop={() => { setQuestions([]); setPhase("start"); setRideState("parked") }} />
   }
 
   if (!q) return null
@@ -408,8 +436,16 @@ export function QuizGame() {
   const isBlank = q.QTYPE === "blank"
   const showGif = phase === "question" || phase === "moving" || phase === "result"
 
+  const dobonEnd = dobon && dobonAt != null && !isCorrect
+
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-4 relative">
+    <div className={`w-full max-w-2xl mx-auto space-y-4 relative ${rainbow ? "rainbow-mode" : ""}`}>
+      {/* Rainbow overlay */}
+      {rainbow && <div className="rainbow-bg-overlay" />}
+      {rainbow && rainbowType === "parrot" && <ParrotRain count={40} override={parrotOverride} />}
+      {rainbow && rainbowType === "tanaka" && <ParrotRain count={10} override={parrotOverride} />}
+      {rainbow && rainbowType === "tanaka" && <div className="rainbow-tanaka-badge">👑 RAINBOW TANAKA</div>}
+
       {/* Background GIF */}
       {showGif && <BackgroundGif state={gifState} questionIdx={currentIdx} />}
 
@@ -540,7 +576,12 @@ export function QuizGame() {
                 )}
               </div>
 
-              <Button className="w-full" size="lg" onClick={handleNext}>{currentIdx + 1 >= questions.length ? "結果を見る" : "次の問題"}</Button>
+              {/* Dobon banner */}
+              {dobonEnd && (
+                <div className="rounded-lg bg-red-600 text-white p-4 text-center text-xl font-black">ドボン！</div>
+              )}
+
+              <Button className="w-full" size="lg" onClick={handleNext}>{dobonEnd ? "結果を見る" : (currentIdx + 1 >= questions.length ? "結果を見る" : "次の問題")}</Button>
             </div>
           )}
         </CardContent>
